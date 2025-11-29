@@ -1,30 +1,81 @@
 import Layout from "@/components/Layout";
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
 import { motion } from "framer-motion";
-import { MapPin, Loader2, CheckCircle2, XCircle, Wifi, Smartphone } from "lucide-react";
+import { MapPin, Loader2, CheckCircle2, XCircle, Wifi, Smartphone, AlertTriangle } from "lucide-react";
 import mapImage from "@assets/generated_images/geofence_map_visualization.png";
+import { api, getCurrentPosition, getDeviceId } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
 export default function StudentAttendance() {
   const [, setLocation] = useLocation();
-  const [step, setStep] = useState<"scanning" | "success" | "error">("scanning");
+  const params = useParams();
+  const courseId = params.courseId;
+  const [step, setStep] = useState<"initializing" | "scanning" | "success" | "error">("initializing");
   const [progress, setProgress] = useState(0);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (step === "scanning") {
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setStep("success");
-            return 100;
-          }
-          return prev + 2;
-        });
-      }, 50);
-      return () => clearInterval(interval);
+    async function initialize() {
+      try {
+        const { session } = await api.sessions.getActive(courseId!);
+        
+        if (!session) {
+          setErrorMessage("No active session for this class");
+          setStep("error");
+          return;
+        }
+
+        setSessionId(session.id);
+        setStep("scanning");
+      } catch (error: any) {
+        setErrorMessage(error.message || "Failed to load session");
+        setStep("error");
+      }
     }
-  }, [step]);
+
+    if (courseId) {
+      initialize();
+    }
+  }, [courseId]);
+
+  useEffect(() => {
+    if (step === "scanning" && sessionId) {
+      const verifyAndMark = async () => {
+        try {
+          const position = await getCurrentPosition();
+          const deviceId = getDeviceId();
+
+          const interval = setInterval(() => {
+            setProgress(prev => {
+              if (prev >= 90) {
+                clearInterval(interval);
+                return 90;
+              }
+              return prev + 5;
+            });
+          }, 100);
+
+          await api.attendance.mark({
+            sessionId,
+            latitude: position.coords.latitude.toString(),
+            longitude: position.coords.longitude.toString(),
+            deviceId,
+          });
+
+          clearInterval(interval);
+          setProgress(100);
+          setTimeout(() => setStep("success"), 500);
+        } catch (error: any) {
+          setErrorMessage(error.message || "Failed to verify location");
+          setStep("error");
+        }
+      };
+
+      verifyAndMark();
+    }
+  }, [step, sessionId]);
 
   return (
     <Layout>
@@ -72,23 +123,33 @@ export default function StudentAttendance() {
 
           {/* Status Section */}
           <div className="p-8 text-center">
-            {step === "scanning" && (
+            {(step === "initializing" || step === "scanning") && (
               <div className="space-y-6">
                 <div className="flex flex-col items-center gap-4">
                   <Loader2 className="w-10 h-10 text-primary animate-spin" />
                   <div>
-                    <h2 className="text-xl font-bold text-slate-900">Verifying Location...</h2>
-                    <p className="text-slate-500">Please stay within the lecture hall.</p>
+                    <h2 className="text-xl font-bold text-slate-900">
+                      {step === "initializing" ? "Loading Session..." : "Verifying Location..."}
+                    </h2>
+                    <p className="text-slate-500">
+                      {step === "initializing" 
+                        ? "Please wait while we load the session details." 
+                        : "Please stay within the lecture hall."}
+                    </p>
                   </div>
                 </div>
                 
-                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                  <motion.div 
-                    className="h-full bg-primary"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-slate-400">Validating geofence coordinates (Accuracy: 3m)</p>
+                {step === "scanning" && (
+                  <>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <motion.div 
+                        className="h-full bg-primary"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-slate-400">Validating GPS coordinates and device fingerprint</p>
+                  </>
+                )}
               </div>
             )}
 
@@ -103,12 +164,13 @@ export default function StudentAttendance() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900">Attendance Marked!</h2>
-                  <p className="text-slate-500 mt-2">You have successfully checked in for GNS 312.</p>
-                  <p className="text-sm text-muted-foreground mt-1">Time: 10:14 AM • ID: #Att-8291</p>
+                  <p className="text-slate-500 mt-2">You have successfully checked in.</p>
+                  <p className="text-sm text-muted-foreground mt-1">Time: {new Date().toLocaleTimeString()}</p>
                 </div>
                 <button 
                   onClick={() => setLocation("/student/dashboard")}
                   className="w-full bg-primary text-white font-medium py-3 rounded-lg hover:bg-blue-800 transition-colors"
+                  data-testid="button-return-dashboard"
                 >
                   Return to Dashboard
                 </button>
@@ -118,18 +180,26 @@ export default function StudentAttendance() {
             {step === "error" && (
               <div className="space-y-6">
                 <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-                  <XCircle className="w-10 h-10 text-red-600" />
+                  <AlertTriangle className="w-10 h-10 text-red-600" />
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900">Verification Failed</h2>
-                  <p className="text-slate-500 mt-2">You appear to be outside the classroom.</p>
+                  <p className="text-slate-500 mt-2">{errorMessage}</p>
                 </div>
-                <button 
-                  onClick={() => { setStep("scanning"); setProgress(0); }}
-                  className="w-full bg-slate-900 text-white font-medium py-3 rounded-lg hover:bg-slate-800 transition-colors"
-                >
-                  Try Again
-                </button>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setLocation("/student/dashboard")}
+                    className="flex-1 bg-white border border-slate-200 text-slate-700 font-medium py-3 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    Go Back
+                  </button>
+                  <button 
+                    onClick={() => { setStep("initializing"); setProgress(0); setErrorMessage(""); }}
+                    className="flex-1 bg-slate-900 text-white font-medium py-3 rounded-lg hover:bg-slate-800 transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
               </div>
             )}
           </div>

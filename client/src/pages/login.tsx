@@ -4,25 +4,37 @@ import { motion } from "framer-motion";
 import { ShieldCheck, ArrowRight, GraduationCap, User } from "lucide-react";
 import bgImage from "@assets/generated_images/modern_university_campus_background_for_login_screen.png";
 import logo from "@assets/generated_images/uniattend_app_logo_icon.png";
+import { api } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const [role, setRole] = useState<"student" | "lecturer">("student");
   const [isLoading, setIsLoading] = useState(false);
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate network request
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const response = await api.auth.login(identifier, password, role);
+      
       if (role === "student") {
         setLocation("/student/dashboard");
       } else {
         setLocation("/lecturer/dashboard");
       }
-    }, 1000);
+    } catch (error: any) {
+      toast({
+        title: "Login Failed",
+        description: error.message || "Invalid credentials",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -80,8 +92,11 @@ export default function LoginPage() {
               <input 
                 type="text" 
                 required
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 placeholder={role === "student" ? "18/52HA019" : "UNI/L/001"}
                 className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-slate-900 placeholder:text-slate-300"
+                data-testid="input-identifier"
               />
             </div>
 
@@ -92,8 +107,11 @@ export default function LoginPage() {
               <input 
                 type="password" 
                 required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-slate-900 placeholder:text-slate-300"
+                data-testid="input-password"
               />
             </div>
 
@@ -102,6 +120,7 @@ export default function LoginPage() {
                 type="submit"
                 disabled={isLoading}
                 className="w-full bg-primary hover:bg-blue-800 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
+                data-testid="button-login"
               >
                 {isLoading ? "Authenticating..." : "Sign In"}
                 {!isLoading && <ArrowRight className="w-4 h-4" />}

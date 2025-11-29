@@ -1,0 +1,90 @@
+export async function fetchApi(endpoint: string, options: RequestInit = {}) {
+  const response = await fetch(`/api${endpoint}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Request failed" }));
+    throw new Error(error.error || "Request failed");
+  }
+
+  return response.json();
+}
+
+export const api = {
+  auth: {
+    login: (identifier: string, password: string, role: string) =>
+      fetchApi("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ identifier, password, role }),
+      }),
+    register: (data: any) =>
+      fetchApi("/auth/register", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    logout: () =>
+      fetchApi("/auth/logout", {
+        method: "POST",
+      }),
+    me: () => fetchApi("/auth/me"),
+  },
+  courses: {
+    getAll: () => fetchApi("/courses"),
+    create: (data: any) =>
+      fetchApi("/courses", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+  },
+  sessions: {
+    getActive: (courseId: string) => fetchApi(`/sessions/active/${courseId}`),
+    create: (data: any) =>
+      fetchApi("/sessions", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    end: (sessionId: string) =>
+      fetchApi(`/sessions/${sessionId}/end`, {
+        method: "POST",
+      }),
+  },
+  attendance: {
+    mark: (data: any) =>
+      fetchApi("/attendance", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    getBySession: (sessionId: string) =>
+      fetchApi(`/attendance/session/${sessionId}`),
+    getStudentHistory: () => fetchApi("/attendance/student"),
+  },
+};
+
+export function getDeviceId(): string {
+  let deviceId = localStorage.getItem("deviceId");
+  if (!deviceId) {
+    deviceId = `device-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem("deviceId", deviceId);
+  }
+  return deviceId;
+}
+
+export function getCurrentPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation is not supported"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    });
+  });
+}

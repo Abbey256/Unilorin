@@ -1,38 +1,61 @@
 import Layout from "@/components/Layout";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useParams } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, UserCheck, Search, ShieldAlert } from "lucide-react";
+import { api } from "@/lib/api";
 
-interface Student {
+interface AttendanceWithStudent {
   id: string;
-  name: string;
-  matric: string;
-  time: string;
-  status: "verified" | "suspicious";
+  student: {
+    name: string;
+    matricNumber: string | null;
+  } | null;
+  markedAt: Date;
+  status: string;
 }
 
 export default function LecturerSession() {
-  const [students, setStudents] = useState<Student[]>([
-    { id: "1", name: "Olabisi Abiodun", matric: "18/52HA019", time: "10:02 AM", status: "verified" },
-    { id: "2", name: "Sarah Johnson", matric: "18/52HA044", time: "10:03 AM", status: "verified" },
-    { id: "3", name: "Michael Chen", matric: "18/52HA012", time: "10:05 AM", status: "verified" },
-  ]);
+  const params = useParams();
+  const sessionId = new URLSearchParams(window.location.search).get("id");
+  const [records, setRecords] = useState<AttendanceWithStudent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const wsRef = useRef<WebSocket | null>(null);
 
-  // Simulate live check-ins
   useEffect(() => {
-    const interval = setInterval(() => {
-      const newStudent: Student = {
-        id: Math.random().toString(),
-        name: "New Student " + Math.floor(Math.random() * 100),
-        matric: "18/52HA0" + Math.floor(Math.random() * 99),
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        status: Math.random() > 0.9 ? "suspicious" : "verified"
-      };
-      setStudents(prev => [newStudent, ...prev]);
-    }, 3000);
+    async function loadAttendance() {
+      if (!sessionId) return;
+      
+      try {
+        const { records: initialRecords } = await api.attendance.getBySession(sessionId);
+        setRecords(initialRecords);
+      } catch (error) {
+        console.error("Failed to load attendance:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
 
-    return () => clearInterval(interval);
-  }, []);
+    loadAttendance();
+
+    if (sessionId) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws?sessionId=${sessionId}`);
+      
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.type === "new_attendance") {
+          setRecords(prev => [message.data, ...prev]);
+        }
+      };
+
+      wsRef.current = ws;
+
+      return () => {
+        ws.close();
+      };
+    }
+  }, [sessionId]);
 
   return (
     <Layout>
@@ -62,11 +85,11 @@ export default function LecturerSession() {
           <div className="p-4 border-b border-slate-100 grid grid-cols-4 gap-4 bg-slate-50/50">
             <div>
               <p className="text-xs text-muted-foreground uppercase font-semibold">Total Present</p>
-              <p className="text-2xl font-bold text-slate-900">{students.length}</p>
+              <p className="text-2xl font-bold text-slate-900">{records.length}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase font-semibold">Attendance Rate</p>
-              <p className="text-2xl font-bold text-slate-900">{Math.min(100, Math.round((students.length / 200) * 100))}%</p>
+              <p className="text-2xl font-bold text-slate-900">{Math.min(100, Math.round((records.length / 200) * 100))}%</p>
             </div>
             <div className="col-span-2 flex justify-end items-center">
                <div className="relative w-64">
@@ -82,44 +105,50 @@ export default function LecturerSession() {
 
           {/* Live List */}
           <div className="flex-1 overflow-y-auto p-0">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-white sticky top-0 z-10 shadow-sm text-muted-foreground font-medium">
-                <tr>
-                  <th className="p-4 w-1/4">Student Name</th>
-                  <th className="p-4 w-1/4">Matric Number</th>
-                  <th className="p-4 w-1/4">Check-in Time</th>
-                  <th className="p-4 w-1/4">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                <AnimatePresence initial={false}>
-                  {students.map((student) => (
-                    <motion.tr 
-                      key={student.id}
-                      initial={{ opacity: 0, x: -20, backgroundColor: "#eff6ff" }}
-                      animate={{ opacity: 1, x: 0, backgroundColor: "#ffffff" }}
-                      transition={{ duration: 0.5 }}
-                      className="group"
-                    >
-                      <td className="p-4 font-medium text-slate-900">{student.name}</td>
-                      <td className="p-4 font-mono text-slate-600">{student.matric}</td>
-                      <td className="p-4 text-muted-foreground">{student.time}</td>
-                      <td className="p-4">
-                        {student.status === "verified" ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">
-                            <UserCheck className="w-3 h-3" /> Verified
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100">
-                            <ShieldAlert className="w-3 h-3" /> Suspicious
-                          </span>
-                        )}
-                      </td>
-                    </motion.tr>
-                  ))}
-                </AnimatePresence>
-              </tbody>
-            </table>
+            {isLoading ? (
+              <div className="flex items-center justify-center p-12">
+                <div className="text-slate-400">Loading attendance records...</div>
+              </div>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead className="bg-white sticky top-0 z-10 shadow-sm text-muted-foreground font-medium">
+                  <tr>
+                    <th className="p-4 w-1/4">Student Name</th>
+                    <th className="p-4 w-1/4">Matric Number</th>
+                    <th className="p-4 w-1/4">Check-in Time</th>
+                    <th className="p-4 w-1/4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  <AnimatePresence initial={false}>
+                    {records.map((record) => (
+                      <motion.tr 
+                        key={record.id}
+                        initial={{ opacity: 0, x: -20, backgroundColor: "#eff6ff" }}
+                        animate={{ opacity: 1, x: 0, backgroundColor: "#ffffff" }}
+                        transition={{ duration: 0.5 }}
+                        className="group"
+                      >
+                        <td className="p-4 font-medium text-slate-900">{record.student?.name || "Unknown"}</td>
+                        <td className="p-4 font-mono text-slate-600">{record.student?.matricNumber || "N/A"}</td>
+                        <td className="p-4 text-muted-foreground">{new Date(record.markedAt).toLocaleTimeString()}</td>
+                        <td className="p-4">
+                          {record.status === "verified" ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">
+                              <UserCheck className="w-3 h-3" /> Verified
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100">
+                              <ShieldAlert className="w-3 h-3" /> Suspicious
+                            </span>
+                          )}
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
