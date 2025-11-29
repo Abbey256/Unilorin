@@ -9,6 +9,8 @@ import StudentHome from "@/pages/student/home";
 import StudentAttendance from "@/pages/student/attendance";
 import LecturerHome from "@/pages/lecturer/home";
 import LecturerSession from "@/pages/lecturer/session";
+import LecturerSessions from "@/pages/lecturer/sessions";
+import StudentHistory from "@/pages/student/history";
 
 function Router() {
   return (
@@ -18,9 +20,11 @@ function Router() {
       {/* Student Routes */}
       <Route path="/student/dashboard" component={StudentHome} />
       <Route path="/student/attendance/:courseId" component={StudentAttendance} />
+      <Route path="/student/history" component={StudentHistory} />
       
       {/* Lecturer Routes */}
       <Route path="/lecturer/dashboard" component={LecturerHome} />
+      <Route path="/lecturer/sessions" component={LecturerSessions} />
       <Route path="/lecturer/session/active" component={LecturerSession} />
       
       <Route component={NotFound} />
