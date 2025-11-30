@@ -16,10 +16,6 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 36489
-externalPort = 3001
-
-[[ports]]
 localPort = 44225
 externalPort = 3000
 
@@ -49,3 +45,9 @@ waitForPort = 5000
 
 [agent]
 mockupState = "FULLSTACK"
+
+[userenv]
+
+[userenv.shared]
+VITE_SUPABASE_URL = "${SUPABASE_URL}"
+VITE_SUPABASE_ANON_KEY = "${SUPABASE_ANON_KEY}"

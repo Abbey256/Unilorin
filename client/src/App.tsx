@@ -10,6 +10,7 @@ import StudentAttendance from "@/pages/student/attendance";
 import LecturerHome from "@/pages/lecturer/home";
 import LecturerSession from "@/pages/lecturer/session";
 import LecturerSessions from "@/pages/lecturer/sessions";
+import LecturerCourses from "@/pages/lecturer/courses";
 import StudentHistory from "@/pages/student/history";
 
 function Router() {
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/lecturer/dashboard" component={LecturerHome} />
       <Route path="/lecturer/sessions" component={LecturerSessions} />
       <Route path="/lecturer/session/active" component={LecturerSession} />
+      <Route path="/lecturer/courses" component={LecturerCourses} />
       
       <Route component={NotFound} />
     </Switch>

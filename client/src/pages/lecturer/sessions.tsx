@@ -1,6 +1,6 @@
 import Layout from "@/components/Layout";
 import { useLocation } from "wouter";
-import { Plus, Users, ChevronRight, Loader2, Calendar } from "lucide-react";
+import { Plus, Users, ChevronRight, Loader2, Calendar, MapPin, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
@@ -26,6 +26,8 @@ export default function LecturerSessions() {
   });
 
   const sessions: Session[] = data?.sessions || [];
+  const activeSessions = sessions.filter(s => s.isActive);
+  const pastSessions = sessions.filter(s => !s.isActive);
 
   return (
     <Layout>
@@ -37,7 +39,7 @@ export default function LecturerSessions() {
           </div>
           <button 
             onClick={() => setLocation("/lecturer/dashboard")}
-            className="bg-primary hover:bg-blue-800 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+            className="bg-[#1a1f6c] hover:bg-[#141852] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
           >
             <Plus className="w-4 h-4" />
             New Session
@@ -46,7 +48,7 @@ export default function LecturerSessions() {
 
         {isLoading ? (
           <div className="flex items-center justify-center p-12">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#1a1f6c]" />
           </div>
         ) : sessions.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-12 text-center">
@@ -55,53 +57,101 @@ export default function LecturerSessions() {
             <p className="text-muted-foreground mb-4">Start a new session from the dashboard to begin tracking attendance.</p>
             <button 
               onClick={() => setLocation("/lecturer/dashboard")}
-              className="bg-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-800 transition-colors"
+              className="bg-[#1a1f6c] text-white px-6 py-2 rounded-lg font-medium hover:bg-[#141852] transition-colors"
             >
               Go to Dashboard
             </button>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {sessions.map((session) => (
-              <div key={session.id} className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-primary/30 transition-all">
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center font-bold text-sm ${
-                    session.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {session.course.code.split(' ')[0]}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 group-hover:text-primary transition-colors">
-                      {session.course.code}: {session.course.title}
-                    </h3>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" /> 
-                        {session.attendanceCount} attended
-                      </span>
-                      <span>•</span>
-                      <span>{session.location}</span>
-                      <span>•</span>
-                      <span>{new Date(session.startTime).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
+          <div className="space-y-6">
+            {activeSessions.length > 0 && (
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  Active Sessions
+                </h2>
+                <div className="grid gap-4">
+                  {activeSessions.map((session) => (
+                    <div key={session.id} className="bg-white p-6 rounded-xl border-2 border-green-200 shadow-sm flex items-center justify-between group hover:border-green-300 transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-lg bg-green-100 text-green-700 flex items-center justify-center font-bold text-sm">
+                          LIVE
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 group-hover:text-[#1a1f6c] transition-colors">
+                            {session.course.code}: {session.course.title}
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" /> 
+                              {session.attendanceCount} / {session.course.capacity} attended
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {session.location}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Started {new Date(session.startTime).toLocaleTimeString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
 
-                <div className="flex items-center gap-3">
-                  {session.isActive && (
-                    <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
-                      Live
-                    </span>
-                  )}
-                  <button 
-                    onClick={() => setLocation(`/lecturer/session/active?id=${session.id}`)}
-                    className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors"
-                  >
-                    View Details
-                  </button>
+                      <button 
+                        onClick={() => setLocation(`/lecturer/session/active?id=${session.id}`)}
+                        className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
+                      >
+                        View Live <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
+
+            {pastSessions.length > 0 && (
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 mb-4">Past Sessions</h2>
+                <div className="grid gap-4">
+                  {pastSessions.map((session) => (
+                    <div key={session.id} className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-[#1a1f6c]/30 transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm">
+                          {session.course.code.split(' ')[0] || session.course.code.substring(0, 3)}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 group-hover:text-[#1a1f6c] transition-colors">
+                            {session.course.code}: {session.course.title}
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" /> 
+                              {session.attendanceCount} attended
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {session.location}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(session.startTime).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={() => setLocation(`/lecturer/session/active?id=${session.id}`)}
+                        className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors"
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

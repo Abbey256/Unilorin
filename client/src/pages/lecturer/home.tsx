@@ -1,6 +1,6 @@
 import Layout from "@/components/Layout";
 import { Link, useLocation } from "wouter";
-import { Users, Clock, BarChart3, Plus, MoreHorizontal, Loader2, MapPin, X } from "lucide-react";
+import { Users, Clock, BarChart3, Plus, Loader2, MapPin, X, BookOpen } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useState } from "react";
@@ -11,6 +11,7 @@ interface Course {
   code: string;
   title: string;
   capacity: number;
+  department: string;
 }
 
 interface Session {
@@ -29,8 +30,7 @@ export default function LecturerHome() {
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState("");
   const [sessionLocation, setSessionLocation] = useState("");
-  const [latitude, setLatitude] = useState("8.4799");
-  const [longitude, setLongitude] = useState("4.5418");
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   const { data: coursesData, isLoading: loadingCourses } = useQuery({
     queryKey: ["courses"],
@@ -48,11 +48,16 @@ export default function LecturerHome() {
 
   const createSessionMutation = useMutation({
     mutationFn: (data: any) => api.sessions.create(data),
-    onSuccess: () => {
+    onSuccess: (response) => {
       toast({ title: "Session Started", description: "Your attendance session is now live." });
       queryClient.invalidateQueries({ queryKey: ["lecturer-sessions"] });
       setShowNewSessionModal(false);
+      setSelectedCourse("");
+      setSessionLocation("");
       refetchSessions();
+      if (response.session?.id) {
+        setLocation(`/lecturer/session/active?id=${response.session.id}`);
+      }
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -77,9 +82,12 @@ export default function LecturerHome() {
       return;
     }
 
+    setIsGettingLocation(true);
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          setIsGettingLocation(false);
           createSessionMutation.mutate({
             courseId: selectedCourse,
             location: sessionLocation,
@@ -88,48 +96,63 @@ export default function LecturerHome() {
             geofenceRadius: 100,
           });
         },
-        () => {
+        (error) => {
+          setIsGettingLocation(false);
+          toast({ 
+            title: "Location Error", 
+            description: "Could not get your location. Using default coordinates for Unilorin.",
+            variant: "destructive" 
+          });
           createSessionMutation.mutate({
             courseId: selectedCourse,
             location: sessionLocation,
-            latitude,
-            longitude,
+            latitude: "8.4799",
+            longitude: "4.5418",
             geofenceRadius: 100,
           });
-        }
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
+      setIsGettingLocation(false);
       createSessionMutation.mutate({
         courseId: selectedCourse,
         location: sessionLocation,
-        latitude,
-        longitude,
+        latitude: "8.4799",
+        longitude: "4.5418",
         geofenceRadius: 100,
       });
     }
   };
 
   const totalStudents = courses.reduce((sum, c) => sum + (c.capacity || 0), 0);
-  const avgAttendance = sessions.length > 0 
-    ? Math.round(sessions.reduce((sum, s) => sum + (s.attendanceCount / (s.course?.capacity || 100)) * 100, 0) / sessions.length)
-    : 0;
 
   return (
     <Layout>
       <div className="space-y-8">
-        <header className="flex items-center justify-between">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-serif font-bold text-slate-900">Instructor Dashboard</h1>
             <p className="text-muted-foreground">Manage your classes and attendance reports.</p>
           </div>
-          <button 
-            onClick={() => setShowNewSessionModal(true)}
-            className="bg-primary hover:bg-blue-800 text-white px-6 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
-            data-testid="button-new-session"
-          >
-            <Plus className="w-4 h-4" />
-            New Session
-          </button>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setLocation("/lecturer/courses")}
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
+            >
+              <BookOpen className="w-4 h-4" />
+              Manage Courses
+            </button>
+            <button 
+              onClick={() => setShowNewSessionModal(true)}
+              disabled={courses.length === 0}
+              className="bg-[#1a1f6c] hover:bg-[#141852] text-white px-6 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="button-new-session"
+            >
+              <Plus className="w-4 h-4" />
+              New Session
+            </button>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -160,7 +183,7 @@ export default function LecturerHome() {
           <section>
             <h2 className="text-lg font-bold text-slate-900 mb-4">Active Session</h2>
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 bg-green-50 rounded-lg flex flex-col items-center justify-center text-green-600 border border-green-100">
                     <span className="text-xs font-bold uppercase">NOW</span>
@@ -168,7 +191,7 @@ export default function LecturerHome() {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg text-slate-900">{activeSession.course.code}: {activeSession.course.title}</h3>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-1">
                       <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> Started {new Date(activeSession.startTime).toLocaleTimeString()}</span>
                       <span className="flex items-center gap-1"><Users className="w-4 h-4" /> {activeSession.attendanceCount} / {activeSession.course.capacity} checked in</span>
                     </div>
@@ -194,50 +217,76 @@ export default function LecturerHome() {
               </div>
               
               <div className="bg-slate-100 h-1.5 w-full">
-                <div className="bg-green-500 h-full" style={{ width: `${Math.min(100, (activeSession.attendanceCount / activeSession.course.capacity) * 100)}%` }} />
+                <div className="bg-green-500 h-full transition-all" style={{ width: `${Math.min(100, (activeSession.attendanceCount / activeSession.course.capacity) * 100)}%` }} />
               </div>
             </div>
           </section>
         )}
 
         <section>
-          <h2 className="text-lg font-bold text-slate-900 mb-4">My Courses</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-slate-900">My Courses</h2>
+            {courses.length > 0 && (
+              <button 
+                onClick={() => setLocation("/lecturer/courses")}
+                className="text-sm text-[#1a1f6c] font-medium hover:underline"
+              >
+                Manage All
+              </button>
+            )}
+          </div>
           {loadingCourses ? (
             <div className="flex items-center justify-center p-12">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <Loader2 className="w-8 h-8 animate-spin text-[#1a1f6c]" />
+            </div>
+          ) : courses.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-12 text-center">
+              <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-slate-900 mb-2">No Courses Yet</h3>
+              <p className="text-muted-foreground mb-4">Add your first course to start creating attendance sessions.</p>
+              <button 
+                onClick={() => setLocation("/lecturer/courses")}
+                className="bg-[#1a1f6c] text-white px-6 py-2 rounded-lg font-medium hover:bg-[#141852] transition-colors"
+              >
+                Add Course
+              </button>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 border-b border-slate-100 text-muted-foreground font-medium">
-                  <tr>
-                    <th className="p-4">Course Code</th>
-                    <th className="p-4">Course Title</th>
-                    <th className="p-4">Capacity</th>
-                    <th className="p-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {courses.map((course) => (
-                    <tr key={course.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-4 font-medium text-slate-900">{course.code}</td>
-                      <td className="p-4">{course.title}</td>
-                      <td className="p-4">{course.capacity}</td>
-                      <td className="p-4 text-right">
-                        <button 
-                          onClick={() => {
-                            setSelectedCourse(course.id);
-                            setShowNewSessionModal(true);
-                          }}
-                          className="text-primary hover:underline text-sm font-medium"
-                        >
-                          Start Session
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-muted-foreground font-medium">
+                    <tr>
+                      <th className="p-4">Course Code</th>
+                      <th className="p-4">Course Title</th>
+                      <th className="p-4 hidden md:table-cell">Department</th>
+                      <th className="p-4">Capacity</th>
+                      <th className="p-4 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {courses.map((course) => (
+                      <tr key={course.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-4 font-medium text-slate-900">{course.code}</td>
+                        <td className="p-4">{course.title}</td>
+                        <td className="p-4 hidden md:table-cell text-muted-foreground">{course.department || "-"}</td>
+                        <td className="p-4">{course.capacity}</td>
+                        <td className="p-4 text-right">
+                          <button 
+                            onClick={() => {
+                              setSelectedCourse(course.id);
+                              setShowNewSessionModal(true);
+                            }}
+                            className="text-[#1a1f6c] hover:underline text-sm font-medium"
+                          >
+                            Start Session
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </section>
@@ -259,7 +308,7 @@ export default function LecturerHome() {
                 <select 
                   value={selectedCourse}
                   onChange={(e) => setSelectedCourse(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none"
                   data-testid="select-course"
                 >
                   <option value="">Choose a course...</option>
@@ -275,8 +324,8 @@ export default function LecturerHome() {
                   type="text"
                   value={sessionLocation}
                   onChange={(e) => setSessionLocation(e.target.value)}
-                  placeholder="e.g., Lecture Theatre A"
-                  className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  placeholder="e.g., Lecture Theatre A, Room 101"
+                  className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none"
                   data-testid="input-location"
                 />
               </div>
@@ -284,8 +333,8 @@ export default function LecturerHome() {
               <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-blue-900">GPS Location</p>
-                  <p className="text-xs text-blue-700">Your current location will be used as the class geofence center. Students must be within 100m to mark attendance.</p>
+                  <p className="text-sm font-medium text-blue-900">GPS Geofencing</p>
+                  <p className="text-xs text-blue-700">Your current location will be used as the class geofence center. Students must be within 100 meters to mark attendance.</p>
                 </div>
               </div>
             </div>
@@ -299,11 +348,11 @@ export default function LecturerHome() {
               </button>
               <button 
                 onClick={handleCreateSession}
-                disabled={createSessionMutation.isPending}
-                className="flex-1 px-4 py-3 bg-primary text-white font-medium rounded-lg hover:bg-blue-800 transition-colors disabled:opacity-50"
+                disabled={createSessionMutation.isPending || isGettingLocation}
+                className="flex-1 px-4 py-3 bg-[#1a1f6c] text-white font-medium rounded-lg hover:bg-[#141852] transition-colors disabled:opacity-50"
                 data-testid="button-start-session"
               >
-                {createSessionMutation.isPending ? "Starting..." : "Start Session"}
+                {isGettingLocation ? "Getting Location..." : createSessionMutation.isPending ? "Starting..." : "Start Session"}
               </button>
             </div>
           </div>

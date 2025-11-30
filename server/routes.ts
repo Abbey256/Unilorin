@@ -1,14 +1,14 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
 import { storage } from "./storage";
-import { insertUserSchema, insertCourseSchema, insertSessionSchema, insertAttendanceRecordSchema } from "@shared/schema";
+import { insertUserSchema, insertCourseSchema, insertSessionSchema, insertAttendanceRecordSchema, UNILORIN_DEPARTMENTS } from "@shared/schema";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { WebSocketServer, WebSocket } from "ws";
+import MemoryStore from "memorystore";
 
-const PgSession = connectPgSimple(session);
+const MemoryStoreSession = MemoryStore(session);
 
 declare module "express-session" {
   interface SessionData {
@@ -65,9 +65,8 @@ export async function registerRoutes(
 
   app.use(
     session({
-      store: new PgSession({
-        conString: process.env.DATABASE_URL,
-        createTableIfMissing: true,
+      store: new MemoryStoreSession({
+        checkPeriod: 86400000,
       }),
       secret: process.env.SESSION_SECRET || "uniattend-secret-key",
       resave: false,
@@ -76,6 +75,7 @@ export async function registerRoutes(
         maxAge: 30 * 24 * 60 * 60 * 1000,
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
       },
     })
   );
@@ -86,6 +86,10 @@ export async function registerRoutes(
     }
     next();
   };
+
+  app.get("/api/departments", async (_req: Request, res: Response) => {
+    res.json({ departments: UNILORIN_DEPARTMENTS });
+  });
 
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
@@ -98,12 +102,23 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Staff ID required for lecturers" });
       }
 
-      const existingUser = validatedData.matricNumber
-        ? await storage.getUserByMatric(validatedData.matricNumber)
-        : await storage.getUserByStaffId(validatedData.staffId!);
+      const existingEmail = await storage.getUserByEmail(validatedData.email);
+      if (existingEmail) {
+        return res.status(400).json({ error: "Email already registered" });
+      }
 
-      if (existingUser) {
-        return res.status(400).json({ error: "User already exists" });
+      if (validatedData.matricNumber) {
+        const existingMatric = await storage.getUserByMatric(validatedData.matricNumber);
+        if (existingMatric) {
+          return res.status(400).json({ error: "Matric number already registered" });
+        }
+      }
+
+      if (validatedData.staffId) {
+        const existingStaff = await storage.getUserByStaffId(validatedData.staffId);
+        if (existingStaff) {
+          return res.status(400).json({ error: "Staff ID already registered" });
+        }
       }
 
       const user = await storage.createUser(validatedData);
@@ -115,6 +130,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: fromZodError(error).message });
       }
+      console.error("Registration error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -123,6 +139,10 @@ export async function registerRoutes(
     try {
       const { identifier, password, role } = req.body;
 
+      if (!identifier || !password || !role) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
       let user;
       if (role === "student") {
         user = await storage.getUserByMatric(identifier);
@@ -130,7 +150,12 @@ export async function registerRoutes(
         user = await storage.getUserByStaffId(identifier);
       }
 
-      if (!user || user.password !== password) {
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const isValidPassword = await storage.validatePassword(user, password);
+      if (!isValidPassword) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
@@ -139,6 +164,7 @@ export async function registerRoutes(
 
       res.json({ user: { ...user, password: undefined } });
     } catch (error) {
+      console.error("Login error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -176,6 +202,7 @@ export async function registerRoutes(
 
       res.json({ courses });
     } catch (error) {
+      console.error("Get courses error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -185,6 +212,11 @@ export async function registerRoutes(
       const user = await storage.getUserById(req.session.userId!);
       if (!user || user.role !== "lecturer") {
         return res.status(403).json({ error: "Only lecturers can create courses" });
+      }
+
+      const existingCourse = await storage.getCourseByCode(req.body.code);
+      if (existingCourse) {
+        return res.status(400).json({ error: "Course code already exists" });
       }
 
       const validatedData = insertCourseSchema.parse({
@@ -198,6 +230,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: fromZodError(error).message });
       }
+      console.error("Create course error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -256,6 +289,7 @@ export async function registerRoutes(
       
       res.json({ session });
     } catch (error) {
+      console.error("Get active session error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -284,6 +318,30 @@ export async function registerRoutes(
 
       res.json({ sessions: sessionsWithCourses });
     } catch (error) {
+      console.error("Get lecturer sessions error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/sessions/:sessionId", requireAuth, async (req: AuthRequest, res: Response) => {
+    try {
+      const session = await storage.getSessionById(req.params.sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      const course = await storage.getCourseById(session.courseId);
+      const attendanceRecords = await storage.getAttendanceBySession(session.id);
+
+      res.json({ 
+        session: {
+          ...session,
+          course,
+          attendanceCount: attendanceRecords.length,
+        }
+      });
+    } catch (error) {
+      console.error("Get session error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -308,6 +366,7 @@ export async function registerRoutes(
       await storage.endSession(req.params.sessionId);
       res.json({ message: "Session ended" });
     } catch (error) {
+      console.error("End session error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -320,6 +379,10 @@ export async function registerRoutes(
       }
 
       const { sessionId, latitude, longitude, deviceId } = req.body;
+
+      if (!sessionId || !latitude || !longitude || !deviceId) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
 
       const session = await storage.getSessionById(sessionId);
       if (!session) {
@@ -419,6 +482,7 @@ export async function registerRoutes(
 
       res.json({ records: recordsWithStudents });
     } catch (error) {
+      console.error("Get attendance error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -431,8 +495,22 @@ export async function registerRoutes(
       }
 
       const records = await storage.getAttendanceByStudent(user.id);
-      res.json({ records });
+      
+      const recordsWithSessions = await Promise.all(
+        records.map(async (record) => {
+          const session = await storage.getSessionById(record.sessionId);
+          const course = session ? await storage.getCourseById(session.courseId) : null;
+          return {
+            ...record,
+            session,
+            course,
+          };
+        })
+      );
+
+      res.json({ records: recordsWithSessions });
     } catch (error) {
+      console.error("Get student attendance error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
