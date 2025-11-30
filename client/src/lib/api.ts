@@ -43,7 +43,8 @@ export const api = {
       }),
   },
   sessions: {
-    getActive: (courseId: string) => fetchApi(`/sessions/active/${courseId}`),
+    getActive: (courseIdOrCode: string) => fetchApi(`/sessions/active/${courseIdOrCode}`),
+    getLecturerSessions: () => fetchApi("/sessions/lecturer"),
     create: (data: any) =>
       fetchApi("/sessions", {
         method: "POST",

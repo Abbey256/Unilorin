@@ -30,6 +30,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   
   getCourseById(id: string): Promise<Course | undefined>;
+  getCourseByCode(code: string): Promise<Course | undefined>;
   getCoursesByLecturer(lecturerId: string): Promise<Course[]>;
   getAllCourses(): Promise<Course[]>;
   createCourse(course: InsertCourse): Promise<Course>;
@@ -79,6 +80,11 @@ export class PostgresStorage implements IStorage {
 
   async getCourseById(id: string): Promise<Course | undefined> {
     const result = await db.select().from(courses).where(eq(courses.id, id));
+    return result[0];
+  }
+
+  async getCourseByCode(code: string): Promise<Course | undefined> {
+    const result = await db.select().from(courses).where(eq(courses.code, code));
     return result[0];
   }
 

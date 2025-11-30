@@ -19,10 +19,11 @@ export default function StudentAttendance() {
   useEffect(() => {
     async function initialize() {
       try {
-        const { session } = await api.sessions.getActive(courseId!);
+        const cleanCourseId = courseId!.replace('%20', ' ').replace(/\s+/g, ' ');
+        const { session } = await api.sessions.getActive(cleanCourseId);
         
         if (!session) {
-          setErrorMessage("No active session for this class");
+          setErrorMessage("No active session for this class. Please wait for your lecturer to start the session.");
           setStep("error");
           return;
         }
@@ -30,7 +31,7 @@ export default function StudentAttendance() {
         setSessionId(session.id);
         setStep("scanning");
       } catch (error: any) {
-        setErrorMessage(error.message || "Failed to load session");
+        setErrorMessage(error.message || "Failed to load session. Make sure you're logged in.");
         setStep("error");
       }
     }
@@ -87,8 +88,8 @@ export default function StudentAttendance() {
           >
             &larr; Back to Dashboard
           </button>
-          <h1 className="text-2xl font-serif font-bold text-slate-900">GNS 312 Attendance</h1>
-          <p className="text-muted-foreground">Lecture Theatre A • Dr. Adebayo</p>
+          <h1 className="text-2xl font-serif font-bold text-slate-900">{courseId} Attendance</h1>
+          <p className="text-muted-foreground">Mark your attendance for this class</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">

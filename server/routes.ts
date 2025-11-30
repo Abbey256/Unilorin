@@ -209,36 +209,80 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Only lecturers can create sessions" });
       }
 
-      const validatedData = insertSessionSchema.parse({
-        ...req.body,
-        startTime: new Date(),
-        isActive: true,
-      });
+      const { courseId, location, latitude, longitude, geofenceRadius } = req.body;
+      
+      if (!courseId || !location || !latitude || !longitude) {
+        return res.status(400).json({ error: "Missing required fields: courseId, location, latitude, longitude" });
+      }
 
-      const course = await storage.getCourseById(validatedData.courseId);
+      const course = await storage.getCourseById(courseId);
       if (!course || course.lecturerId !== user.id) {
         return res.status(403).json({ error: "Not authorized for this course" });
       }
 
-      const existingActive = await storage.getActiveSessionByCourse(validatedData.courseId);
+      const existingActive = await storage.getActiveSessionByCourse(courseId);
       if (existingActive) {
         return res.status(400).json({ error: "Active session already exists for this course" });
       }
 
-      const session = await storage.createSession(validatedData);
+      const session = await storage.createSession({
+        courseId,
+        location,
+        latitude: latitude.toString(),
+        longitude: longitude.toString(),
+        geofenceRadius: geofenceRadius || 100,
+        startTime: new Date(),
+        isActive: true,
+      });
+      
       res.json({ session });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: fromZodError(error).message });
-      }
+      console.error("Session creation error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
 
-  app.get("/api/sessions/active/:courseId", async (req: Request, res: Response) => {
+  app.get("/api/sessions/active/:courseIdOrCode", async (req: Request, res: Response) => {
     try {
-      const session = await storage.getActiveSessionByCourse(req.params.courseId);
+      const param = req.params.courseIdOrCode;
+      let session = await storage.getActiveSessionByCourse(param);
+      
+      if (!session) {
+        const course = await storage.getCourseByCode(param);
+        if (course) {
+          session = await storage.getActiveSessionByCourse(course.id);
+        }
+      }
+      
       res.json({ session });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/sessions/lecturer", requireAuth, async (req: AuthRequest, res: Response) => {
+    try {
+      const user = await storage.getUserById(req.session.userId!);
+      if (!user || user.role !== "lecturer") {
+        return res.status(403).json({ error: "Only lecturers can access this" });
+      }
+
+      const courses = await storage.getCoursesByLecturer(user.id);
+      const sessionsWithCourses = [];
+      
+      for (const course of courses) {
+        const courseSessions = await storage.getSessionByCourse(course.id);
+        for (const session of courseSessions) {
+          const attendanceCount = (await storage.getAttendanceBySession(session.id)).length;
+          sessionsWithCourses.push({
+            ...session,
+            course,
+            attendanceCount,
+          });
+        }
+      }
+
+      res.json({ sessions: sessionsWithCourses });
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
     }
