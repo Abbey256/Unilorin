@@ -56,11 +56,24 @@ export const api = {
       }),
   },
   attendance: {
-    mark: (data: any) =>
-      fetchApi("/attendance", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+    mark: async (data: any) => {
+      try {
+        return await fetchApi("/attendance", {
+          method: "POST",
+          body: JSON.stringify(data),
+        });
+      } catch (error) {
+        if (!navigator.onLine) {
+          const { offlineSync } = await import("./offline-sync");
+          offlineSync.saveRequest("/attendance", "POST", data);
+          return {
+            record: { ...data, status: "pending_sync", markedAt: new Date().toISOString() },
+            message: "Offline: Attendance saved. Will sync when online."
+          };
+        }
+        throw error;
+      }
+    },
     getBySession: (sessionId: string) =>
       fetchApi(`/attendance/session/${sessionId}`),
     getStudentHistory: () => fetchApi("/attendance/student"),

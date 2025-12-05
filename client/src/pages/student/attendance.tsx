@@ -15,13 +15,14 @@ export default function StudentAttendance() {
   const [progress, setProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isOfflineSaved, setIsOfflineSaved] = useState(false);
 
   useEffect(() => {
     async function initialize() {
       try {
         const cleanCourseId = decodeURIComponent(courseId || '').replace(/%20/g, ' ').replace(/\s+/g, ' ').trim();
         const { session } = await api.sessions.getActive(cleanCourseId);
-        
+
         if (!session) {
           setErrorMessage("No active session for this class. Please wait for your lecturer to start the session.");
           setStep("error");
@@ -58,12 +59,16 @@ export default function StudentAttendance() {
             });
           }, 100);
 
-          await api.attendance.mark({
+          const response = await api.attendance.mark({
             sessionId,
             latitude: position.coords.latitude.toString(),
             longitude: position.coords.longitude.toString(),
             deviceId,
           });
+
+          if (response.record?.status === "pending_sync") {
+            setIsOfflineSaved(true);
+          }
 
           clearInterval(interval);
           setProgress(100);
@@ -84,7 +89,7 @@ export default function StudentAttendance() {
     <Layout>
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
-          <button 
+          <button
             onClick={() => setLocation("/student/dashboard")}
             className="text-sm text-muted-foreground hover:text-[#1a1f6c] mb-2 flex items-center gap-1"
           >
@@ -96,12 +101,12 @@ export default function StudentAttendance() {
 
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
           <div className="relative h-64 bg-slate-100 overflow-hidden">
-            <img 
-              src={mapImage} 
-              alt="Geofence Map" 
+            <img
+              src={mapImage}
+              alt="Geofence Map"
               className="w-full h-full object-cover opacity-80"
             />
-            
+
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="relative">
                 <div className="w-4 h-4 bg-[#1a1f6c] rounded-full z-10 relative shadow-[0_0_0_4px_rgba(255,255,255,0.5)]" />
@@ -132,17 +137,17 @@ export default function StudentAttendance() {
                       {step === "initializing" ? "Loading Session..." : "Verifying Location..."}
                     </h2>
                     <p className="text-slate-500">
-                      {step === "initializing" 
-                        ? "Please wait while we load the session details." 
+                      {step === "initializing"
+                        ? "Please wait while we load the session details."
                         : "Please stay within the lecture hall."}
                     </p>
                   </div>
                 </div>
-                
+
                 {step === "scanning" && (
                   <>
                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                      <motion.div 
+                      <motion.div
                         className="h-full bg-[#1a1f6c]"
                         style={{ width: `${progress}%` }}
                       />
@@ -154,7 +159,7 @@ export default function StudentAttendance() {
             )}
 
             {step === "success" && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="space-y-6"
@@ -163,11 +168,17 @@ export default function StudentAttendance() {
                   <CheckCircle2 className="w-10 h-10 text-green-600" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900">Attendance Marked!</h2>
-                  <p className="text-slate-500 mt-2">You have successfully checked in for {displayCourseId}.</p>
+                  <h2 className="text-2xl font-bold text-slate-900">
+                    {isOfflineSaved ? "Attendance Saved (Offline)" : "Attendance Marked!"}
+                  </h2>
+                  <p className="text-slate-500 mt-2">
+                    {isOfflineSaved
+                      ? "Your attendance has been saved and will automatically sync when you are back online."
+                      : `You have successfully checked in for ${displayCourseId}.`}
+                  </p>
                   <p className="text-sm text-muted-foreground mt-1">Time: {new Date().toLocaleTimeString()}</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setLocation("/student/dashboard")}
                   className="w-full bg-[#1a1f6c] text-white font-medium py-3 rounded-lg hover:bg-[#141852] transition-colors"
                   data-testid="button-return-dashboard"
@@ -187,13 +198,13 @@ export default function StudentAttendance() {
                   <p className="text-slate-500 mt-2">{errorMessage}</p>
                 </div>
                 <div className="flex gap-3">
-                  <button 
+                  <button
                     onClick={() => setLocation("/student/dashboard")}
                     className="flex-1 bg-white border border-slate-200 text-slate-700 font-medium py-3 rounded-lg hover:bg-slate-50 transition-colors"
                   >
                     Go Back
                   </button>
-                  <button 
+                  <button
                     onClick={() => { setStep("initializing"); setProgress(0); setErrorMessage(""); }}
                     className="flex-1 bg-[#1a1f6c] text-white font-medium py-3 rounded-lg hover:bg-[#141852] transition-colors"
                   >

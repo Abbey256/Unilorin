@@ -1,4 +1,5 @@
 import { Switch, Route } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -17,24 +18,33 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={LoginPage} />
-      
+
       {/* Student Routes */}
       <Route path="/student/dashboard" component={StudentHome} />
       <Route path="/student/attendance/:courseId" component={StudentAttendance} />
       <Route path="/student/history" component={StudentHistory} />
-      
+
       {/* Lecturer Routes */}
       <Route path="/lecturer/dashboard" component={LecturerHome} />
       <Route path="/lecturer/sessions" component={LecturerSessions} />
       <Route path="/lecturer/session/active" component={LecturerSession} />
       <Route path="/lecturer/courses" component={LecturerCourses} />
-      
+
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function App() {
+  useEffect(() => {
+    const handleOnline = async () => {
+      const { offlineSync } = await import("@/lib/offline-sync");
+      offlineSync.sync();
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
