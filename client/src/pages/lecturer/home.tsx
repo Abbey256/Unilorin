@@ -41,7 +41,7 @@ export default function LecturerHome() {
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState("");
   const [sessionLocation, setSessionLocation] = useState("");
-  const [locationSource, setLocationSource] = useState<"gps" | "preset">("gps");
+  const [locationSource, setLocationSource] = useState<"gps" | "preset">("preset");
   const [selectedPreset, setSelectedPreset] = useState(UNILORIN_LOCATIONS[0].name);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
