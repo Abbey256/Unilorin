@@ -79,6 +79,15 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'wouter'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-slot', 'lucide-react'],
+          utils: ['date-fns', 'clsx', 'tailwind-merge']
+        }
+      }
+    }
   },
   server: {
     host: "0.0.0.0",
