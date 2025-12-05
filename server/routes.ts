@@ -121,7 +121,31 @@ export async function registerRoutes(
         }
       }
 
+      if (validatedData.role === "student") {
+        const deviceId = req.body.deviceId;
+        if (!deviceId) {
+          return res.status(400).json({ error: "Device ID is required for registration" });
+        }
+
+        const existingDevice = await storage.getDeviceById(deviceId);
+        if (existingDevice) {
+          return res.status(400).json({ error: "This device is already registered to another student account." });
+        }
+      }
+
       const user = await storage.createUser(validatedData);
+
+      // If student, immediately lock this device to them
+      if (user.role === "student" && req.body.deviceId) {
+        await storage.registerDevice({
+          studentId: user.id,
+          deviceId: req.body.deviceId,
+          deviceName: req.headers["user-agent"] || "Unknown",
+          userAgent: req.headers["user-agent"] || "",
+          isActive: true,
+        });
+      }
+
       (req as AuthRequest).session.userId = user.id;
       (req as AuthRequest).session.role = user.role;
 
@@ -189,15 +213,14 @@ export async function registerRoutes(
   app.get("/api/courses", requireAuth, async (req: AuthRequest, res: Response) => {
     try {
       const user = await storage.getUserById(req.session.userId!);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
+      if (!user) return res.sendStatus(401);
 
       let courses;
       if (user.role === "lecturer") {
         courses = await storage.getCoursesByLecturer(user.id);
       } else {
-        courses = await storage.getAllCourses();
+        // For students, only return courses with active sessions
+        courses = await storage.getCoursesWithActiveSessions();
       }
 
       res.json({ courses });

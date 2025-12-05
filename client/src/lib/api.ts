@@ -26,7 +26,7 @@ export const api = {
     register: (data: any) =>
       fetchApi("/auth/register", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, deviceId: getDeviceId() }),
       }),
     logout: () =>
       fetchApi("/auth/logout", {

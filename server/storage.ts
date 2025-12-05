@@ -49,6 +49,7 @@ export interface IStorage {
   registerDevice(device: InsertDevice): Promise<Device>;
   updateDeviceLastUsed(deviceId: string): Promise<void>;
   getUniqueStudentsByLecturer(lecturerId: string): Promise<number>;
+  getCoursesWithActiveSessions(): Promise<Course[]>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -487,6 +488,29 @@ export class SupabaseStorage implements IStorage {
 
     const uniqueStudents = new Set(records.map(r => r.student_id));
     return uniqueStudents.size;
+  }
+
+  async getCoursesWithActiveSessions(): Promise<Course[]> {
+    // 1. Get all active sessions
+    const { data: sessions, error: sessionError } = await supabase
+      .from('sessions')
+      .select('course_id')
+      .eq('is_active', true);
+
+    if (sessionError || !sessions || sessions.length === 0) return [];
+
+    // 2. Get unique course IDs
+    const courseIds = Array.from(new Set(sessions.map(s => s.course_id)));
+
+    // 3. Fetch course details
+    const { data: courses, error: courseError } = await supabase
+      .from('courses')
+      .select('*')
+      .in('id', courseIds)
+      .order('code');
+
+    if (courseError || !courses) return [];
+    return courses.map(this.mapCourse);
   }
 }
 
