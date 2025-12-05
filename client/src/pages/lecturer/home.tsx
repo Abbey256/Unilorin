@@ -24,12 +24,25 @@ interface Session {
   attendanceCount: number;
 }
 
+const UNILORIN_LOCATIONS = [
+  { name: "Unilorin Main Gate", lat: "8.4799", lng: "4.5418", radius: 200 },
+  { name: "Lecture Theatre 1 (LT1)", lat: "8.4820", lng: "4.5450", radius: 150 },
+  { name: "Lecture Theatre 2 (LT2)", lat: "8.4810", lng: "4.5430", radius: 150 },
+  { name: "University Auditorium", lat: "8.4840", lng: "4.5480", radius: 200 },
+  { name: "CBT Centre", lat: "8.4850", lng: "4.5490", radius: 200 },
+  { name: "Faculty of Science", lat: "8.4830", lng: "4.5460", radius: 200 },
+  { name: "Faculty of Engineering", lat: "8.4800", lng: "4.5400", radius: 200 },
+  { name: "Whole Campus (Testing Mode)", lat: "8.4820", lng: "4.5450", radius: 2000 },
+];
+
 export default function LecturerHome() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState("");
   const [sessionLocation, setSessionLocation] = useState("");
+  const [locationSource, setLocationSource] = useState<"gps" | "preset">("gps");
+  const [selectedPreset, setSelectedPreset] = useState(UNILORIN_LOCATIONS[0].name);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   const { data: coursesData, isLoading: loadingCourses } = useQuery({
@@ -88,6 +101,18 @@ export default function LecturerHome() {
       return;
     }
 
+    if (locationSource === "preset") {
+      const preset = UNILORIN_LOCATIONS.find(l => l.name === selectedPreset) || UNILORIN_LOCATIONS[0];
+      createSessionMutation.mutate({
+        courseId: selectedCourse,
+        location: sessionLocation,
+        latitude: preset.lat,
+        longitude: preset.lng,
+        geofenceRadius: preset.radius,
+      });
+      return;
+    }
+
     setIsGettingLocation(true);
 
     if (navigator.geolocation) {
@@ -109,6 +134,7 @@ export default function LecturerHome() {
             description: "Could not get your location. Using default coordinates for Unilorin.",
             variant: "destructive"
           });
+          // Fallback to Main Gate if GPS fails
           createSessionMutation.mutate({
             courseId: selectedCourse,
             location: sessionLocation,
@@ -130,8 +156,6 @@ export default function LecturerHome() {
       });
     }
   };
-
-  // const totalStudents = courses.reduce((sum, c) => sum + (c.capacity || 0), 0);
 
   return (
     <Layout>
@@ -340,8 +364,53 @@ export default function LecturerHome() {
                 <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-blue-900">GPS Geofencing</p>
-                  <p className="text-xs text-blue-700">Your current location will be used as the class geofence center. Students must be within 200 meters to mark attendance.</p>
+                  <p className="text-xs text-blue-700">
+                    {locationSource === "gps"
+                      ? "Using your current location. Students must be within 200m."
+                      : `Using preset coordinates. Students must be within ${UNILORIN_LOCATIONS.find(l => l.name === selectedPreset)?.radius || 200}m.`}
+                  </p>
                 </div>
+              </div>
+
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <label className="text-sm font-medium text-slate-700 block">Location Source</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setLocationSource("gps")}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${locationSource === "gps"
+                      ? "bg-[#1a1f6c] text-white border-[#1a1f6c]"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                      }`}
+                  >
+                    Auto-Detect (GPS)
+                  </button>
+                  <button
+                    onClick={() => setLocationSource("preset")}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${locationSource === "preset"
+                      ? "bg-[#1a1f6c] text-white border-[#1a1f6c]"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                      }`}
+                  >
+                    Select Classroom
+                  </button>
+                </div>
+
+                {locationSource === "preset" && (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                    <select
+                      value={selectedPreset}
+                      onChange={(e) => setSelectedPreset(e.target.value)}
+                      className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none bg-slate-50"
+                    >
+                      {UNILORIN_LOCATIONS.map((loc) => (
+                        <option key={loc.name} value={loc.name}>{loc.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-500 mt-1 ml-1">
+                      Using preset coordinates for {selectedPreset}.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
