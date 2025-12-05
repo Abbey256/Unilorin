@@ -42,9 +42,15 @@ export default function LecturerHome() {
     queryFn: api.sessions.getLecturerSessions,
   });
 
+  const { data: analyticsData } = useQuery({
+    queryKey: ["lecturer-analytics"],
+    queryFn: api.analytics.getLecturerStats,
+  });
+
   const courses: Course[] = coursesData?.courses || [];
   const sessions: Session[] = sessionsData?.sessions || [];
   const activeSession = sessions.find(s => s.isActive);
+  const uniqueStudents = analyticsData?.uniqueStudents || 0;
 
   const createSessionMutation = useMutation({
     mutationFn: (data: any) => api.sessions.create(data),
@@ -98,10 +104,10 @@ export default function LecturerHome() {
         },
         (error) => {
           setIsGettingLocation(false);
-          toast({ 
-            title: "Location Error", 
+          toast({
+            title: "Location Error",
             description: "Could not get your location. Using default coordinates for Unilorin.",
-            variant: "destructive" 
+            variant: "destructive"
           });
           createSessionMutation.mutate({
             courseId: selectedCourse,
@@ -125,7 +131,7 @@ export default function LecturerHome() {
     }
   };
 
-  const totalStudents = courses.reduce((sum, c) => sum + (c.capacity || 0), 0);
+  // const totalStudents = courses.reduce((sum, c) => sum + (c.capacity || 0), 0);
 
   return (
     <Layout>
@@ -136,14 +142,14 @@ export default function LecturerHome() {
             <p className="text-muted-foreground">Manage your classes and attendance reports.</p>
           </div>
           <div className="flex gap-3">
-            <button 
+            <button
               onClick={() => setLocation("/lecturer/courses")}
               className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
             >
               <BookOpen className="w-4 h-4" />
               Manage Courses
             </button>
-            <button 
+            <button
               onClick={() => setShowNewSessionModal(true)}
               disabled={courses.length === 0}
               className="bg-[#1a1f6c] hover:bg-[#141852] text-white px-6 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -159,8 +165,8 @@ export default function LecturerHome() {
           <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
             <h3 className="text-sm font-medium text-muted-foreground mb-2">Total Students</h3>
             <div className="flex items-end gap-2">
-              <span className="text-3xl font-bold text-slate-900">{totalStudents}</span>
-              <span className="text-xs text-green-600 font-medium mb-1.5">Across {courses.length} courses</span>
+              <span className="text-3xl font-bold text-slate-900">{uniqueStudents}</span>
+              <span className="text-xs text-green-600 font-medium mb-1.5">Unique attendees</span>
             </div>
           </div>
           <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
@@ -197,15 +203,15 @@ export default function LecturerHome() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3 w-full md:w-auto">
-                  <button 
+                  <button
                     onClick={() => setLocation(`/lecturer/session/active?id=${activeSession.id}`)}
                     className="flex-1 md:flex-none px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
                   >
                     View Live Feed
                   </button>
-                  <button 
+                  <button
                     onClick={() => endSessionMutation.mutate(activeSession.id)}
                     disabled={endSessionMutation.isPending}
                     className="flex-1 md:flex-none px-6 py-2 bg-red-50 text-red-600 border border-red-100 font-medium rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
@@ -215,7 +221,7 @@ export default function LecturerHome() {
                   </button>
                 </div>
               </div>
-              
+
               <div className="bg-slate-100 h-1.5 w-full">
                 <div className="bg-green-500 h-full transition-all" style={{ width: `${Math.min(100, (activeSession.attendanceCount / activeSession.course.capacity) * 100)}%` }} />
               </div>
@@ -227,7 +233,7 @@ export default function LecturerHome() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-slate-900">My Courses</h2>
             {courses.length > 0 && (
-              <button 
+              <button
                 onClick={() => setLocation("/lecturer/courses")}
                 className="text-sm text-[#1a1f6c] font-medium hover:underline"
               >
@@ -244,7 +250,7 @@ export default function LecturerHome() {
               <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-slate-900 mb-2">No Courses Yet</h3>
               <p className="text-muted-foreground mb-4">Add your first course to start creating attendance sessions.</p>
-              <button 
+              <button
                 onClick={() => setLocation("/lecturer/courses")}
                 className="bg-[#1a1f6c] text-white px-6 py-2 rounded-lg font-medium hover:bg-[#141852] transition-colors"
               >
@@ -272,7 +278,7 @@ export default function LecturerHome() {
                         <td className="p-4 hidden md:table-cell text-muted-foreground">{course.department || "-"}</td>
                         <td className="p-4">{course.capacity}</td>
                         <td className="p-4 text-right">
-                          <button 
+                          <button
                             onClick={() => {
                               setSelectedCourse(course.id);
                               setShowNewSessionModal(true);
@@ -301,11 +307,11 @@ export default function LecturerHome() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Select Course</label>
-                <select 
+                <select
                   value={selectedCourse}
                   onChange={(e) => setSelectedCourse(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none"
@@ -320,7 +326,7 @@ export default function LecturerHome() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Location</label>
-                <input 
+                <input
                   type="text"
                   value={sessionLocation}
                   onChange={(e) => setSessionLocation(e.target.value)}
@@ -340,13 +346,13 @@ export default function LecturerHome() {
             </div>
 
             <div className="p-6 bg-slate-50 flex gap-3">
-              <button 
+              <button
                 onClick={() => setShowNewSessionModal(false)}
                 className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-100 transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleCreateSession}
                 disabled={createSessionMutation.isPending || isGettingLocation}
                 className="flex-1 px-4 py-3 bg-[#1a1f6c] text-white font-medium rounded-lg hover:bg-[#141852] transition-colors disabled:opacity-50"

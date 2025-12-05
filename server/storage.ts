@@ -22,32 +22,33 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   validatePassword(user: User, password: string): Promise<boolean>;
-  
+
   getDepartments(): Promise<Department[]>;
   createDepartment(department: InsertDepartment): Promise<Department>;
-  
+
   getCourseById(id: string): Promise<Course | undefined>;
   getCourseByCode(code: string): Promise<Course | undefined>;
   getCoursesByLecturer(lecturerId: string): Promise<Course[]>;
   getCoursesByDepartment(department: string): Promise<Course[]>;
   getAllCourses(): Promise<Course[]>;
   createCourse(course: InsertCourse): Promise<Course>;
-  
+
   getSessionById(id: string): Promise<Session | undefined>;
   getSessionByCourse(courseId: string): Promise<Session[]>;
   getActiveSessionByCourse(courseId: string): Promise<Session | undefined>;
   createSession(session: InsertSession): Promise<Session>;
   endSession(sessionId: string): Promise<void>;
-  
+
   getAttendanceBySession(sessionId: string): Promise<AttendanceRecord[]>;
   getAttendanceByStudent(studentId: string): Promise<AttendanceRecord[]>;
   checkAttendanceExists(sessionId: string, studentId: string): Promise<boolean>;
   markAttendance(record: InsertAttendanceRecord): Promise<AttendanceRecord>;
-  
+
   getDeviceByStudentId(studentId: string): Promise<Device | undefined>;
   getDeviceById(deviceId: string): Promise<Device | undefined>;
   registerDevice(device: InsertDevice): Promise<Device>;
   updateDeviceLastUsed(deviceId: string): Promise<void>;
+  getUniqueStudentsByLecturer(lecturerId: string): Promise<number>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -57,7 +58,7 @@ export class SupabaseStorage implements IStorage {
       .select('*')
       .eq('id', id)
       .single();
-    
+
     if (error || !data) return undefined;
     return this.mapUser(data);
   }
@@ -68,7 +69,7 @@ export class SupabaseStorage implements IStorage {
       .select('*')
       .eq('matric_number', matricNumber)
       .single();
-    
+
     if (error || !data) return undefined;
     return this.mapUser(data);
   }
@@ -79,7 +80,7 @@ export class SupabaseStorage implements IStorage {
       .select('*')
       .eq('staff_id', staffId)
       .single();
-    
+
     if (error || !data) return undefined;
     return this.mapUser(data);
   }
@@ -90,14 +91,14 @@ export class SupabaseStorage implements IStorage {
       .select('*')
       .eq('email', email)
       .single();
-    
+
     if (error || !data) return undefined;
     return this.mapUser(data);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const hashedPassword = await bcrypt.hash(insertUser.password, 12);
-    
+
     const { data, error } = await supabase
       .from('users')
       .insert({
@@ -111,7 +112,7 @@ export class SupabaseStorage implements IStorage {
       })
       .select()
       .single();
-    
+
     if (error) throw new Error(error.message);
     return this.mapUser(data);
   }
@@ -128,7 +129,7 @@ export class SupabaseStorage implements IStorage {
       .from('departments')
       .select('*')
       .order('name');
-    
+
     if (error) return [];
     return data.map(this.mapDepartment);
   }
@@ -143,7 +144,7 @@ export class SupabaseStorage implements IStorage {
       })
       .select()
       .single();
-    
+
     if (error) throw new Error(error.message);
     return this.mapDepartment(data);
   }
@@ -154,7 +155,7 @@ export class SupabaseStorage implements IStorage {
       .select('*')
       .eq('id', id)
       .single();
-    
+
     if (error || !data) return undefined;
     return this.mapCourse(data);
   }
@@ -165,7 +166,7 @@ export class SupabaseStorage implements IStorage {
       .select('*')
       .eq('code', code)
       .single();
-    
+
     if (error || !data) return undefined;
     return this.mapCourse(data);
   }
@@ -175,7 +176,7 @@ export class SupabaseStorage implements IStorage {
       .from('courses')
       .select('*')
       .eq('lecturer_id', lecturerId);
-    
+
     if (error) return [];
     return data.map(this.mapCourse);
   }
@@ -185,7 +186,7 @@ export class SupabaseStorage implements IStorage {
       .from('courses')
       .select('*')
       .eq('department', department);
-    
+
     if (error) return [];
     return data.map(this.mapCourse);
   }
@@ -195,7 +196,7 @@ export class SupabaseStorage implements IStorage {
       .from('courses')
       .select('*')
       .order('code');
-    
+
     if (error) return [];
     return data.map(this.mapCourse);
   }
@@ -212,7 +213,7 @@ export class SupabaseStorage implements IStorage {
       })
       .select()
       .single();
-    
+
     if (error) throw new Error(error.message);
     return this.mapCourse(data);
   }
@@ -223,7 +224,7 @@ export class SupabaseStorage implements IStorage {
       .select('*')
       .eq('id', id)
       .single();
-    
+
     if (error || !data) return undefined;
     return this.mapSession(data);
   }
@@ -234,7 +235,7 @@ export class SupabaseStorage implements IStorage {
       .select('*')
       .eq('course_id', courseId)
       .order('created_at', { ascending: false });
-    
+
     if (error) return [];
     return data.map(this.mapSession);
   }
@@ -246,7 +247,7 @@ export class SupabaseStorage implements IStorage {
       .eq('course_id', courseId)
       .eq('is_active', true)
       .single();
-    
+
     if (error || !data) return undefined;
     return this.mapSession(data);
   }
@@ -265,7 +266,7 @@ export class SupabaseStorage implements IStorage {
       })
       .select()
       .single();
-    
+
     if (error) throw new Error(error.message);
     return this.mapSession(data);
   }
@@ -275,7 +276,7 @@ export class SupabaseStorage implements IStorage {
       .from('sessions')
       .update({ is_active: false, end_time: new Date().toISOString() })
       .eq('id', sessionId);
-    
+
     if (error) throw new Error(error.message);
   }
 
@@ -285,7 +286,7 @@ export class SupabaseStorage implements IStorage {
       .select('*')
       .eq('session_id', sessionId)
       .order('marked_at', { ascending: false });
-    
+
     if (error) return [];
     return data.map(this.mapAttendance);
   }
@@ -296,7 +297,7 @@ export class SupabaseStorage implements IStorage {
       .select('*')
       .eq('student_id', studentId)
       .order('marked_at', { ascending: false });
-    
+
     if (error) return [];
     return data.map(this.mapAttendance);
   }
@@ -307,7 +308,7 @@ export class SupabaseStorage implements IStorage {
       .select('id')
       .eq('session_id', sessionId)
       .eq('student_id', studentId);
-    
+
     if (error) return false;
     return data.length > 0;
   }
@@ -327,7 +328,7 @@ export class SupabaseStorage implements IStorage {
       })
       .select()
       .single();
-    
+
     if (error) throw new Error(error.message);
     return this.mapAttendance(data);
   }
@@ -339,7 +340,7 @@ export class SupabaseStorage implements IStorage {
       .eq('student_id', studentId)
       .eq('is_active', true)
       .single();
-    
+
     if (error || !data) return undefined;
     return this.mapDevice(data);
   }
@@ -350,7 +351,7 @@ export class SupabaseStorage implements IStorage {
       .select('*')
       .eq('device_id', deviceId)
       .single();
-    
+
     if (error || !data) return undefined;
     return this.mapDevice(data);
   }
@@ -367,7 +368,7 @@ export class SupabaseStorage implements IStorage {
       })
       .select()
       .single();
-    
+
     if (error) throw new Error(error.message);
     return this.mapDevice(data);
   }
@@ -377,7 +378,7 @@ export class SupabaseStorage implements IStorage {
       .from('devices')
       .update({ last_used: new Date().toISOString() })
       .eq('device_id', deviceId);
-    
+
     if (error) throw new Error(error.message);
   }
 
@@ -458,6 +459,34 @@ export class SupabaseStorage implements IStorage {
       lastUsed: new Date(data.last_used),
       createdAt: new Date(data.created_at),
     };
+  }
+  async getUniqueStudentsByLecturer(lecturerId: string): Promise<number> {
+    // 1. Get all courses by lecturer
+    const courses = await this.getCoursesByLecturer(lecturerId);
+    if (courses.length === 0) return 0;
+    const courseIds = courses.map(c => c.id);
+
+    // 2. Get all sessions for these courses
+    const { data: sessions, error: sessionError } = await supabase
+      .from('sessions')
+      .select('id')
+      .in('course_id', courseIds);
+
+    if (sessionError || !sessions || sessions.length === 0) return 0;
+    const sessionIds = sessions.map(s => s.id);
+
+    // 3. Get unique students from attendance records
+    // distinct() is not directly supported in simple select count with JS client easily for unique counting without fetching
+    // So we fetch student_ids and count unique in memory (acceptable for MVP scale)
+    const { data: records, error: attendanceError } = await supabase
+      .from('attendance_records')
+      .select('student_id')
+      .in('session_id', sessionIds);
+
+    if (attendanceError || !records) return 0;
+
+    const uniqueStudents = new Set(records.map(r => r.student_id));
+    return uniqueStudents.size;
   }
 }
 

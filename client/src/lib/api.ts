@@ -42,6 +42,9 @@ export const api = {
         body: JSON.stringify(data),
       }),
   },
+  analytics: {
+    getLecturerStats: () => fetchApi("/analytics/lecturer"),
+  },
   sessions: {
     getActive: (courseIdOrCode: string) => fetchApi(`/sessions/active/${courseIdOrCode}`),
     getLecturerSessions: () => fetchApi("/sessions/lecturer"),
@@ -95,10 +98,37 @@ export function getCurrentPosition(): Promise<GeolocationPosition> {
       reject(new Error("Geolocation is not supported"));
       return;
     }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
+
+    const options = {
       enableHighAccuracy: true,
-      timeout: 10000,
+      timeout: 30000, // Increased to 30 seconds
       maximumAge: 0,
-    });
+    };
+
+    // First attempt with high accuracy
+    navigator.geolocation.getCurrentPosition(
+      resolve,
+      (error) => {
+        // If timeout or error, try one more time with slightly relaxed settings
+        if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
+          console.log("Retrying location with relaxed settings...");
+          navigator.geolocation.getCurrentPosition(
+            resolve,
+            (retryError) => {
+              // If it fails again, reject with a clear message
+              reject(new Error("Could not get precise location. Please move to an open area and try again."));
+            },
+            {
+              enableHighAccuracy: true, // Still try high accuracy
+              timeout: 45000, // Longer timeout for retry
+              maximumAge: 5000, // Accept cached position up to 5s old
+            }
+          );
+        } else {
+          reject(error);
+        }
+      },
+      options
+    );
   });
 }

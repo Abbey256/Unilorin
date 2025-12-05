@@ -94,7 +94,7 @@ export async function registerRoutes(
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
       const validatedData = insertUserSchema.parse(req.body);
-      
+
       if (validatedData.role === "student" && !validatedData.matricNumber) {
         return res.status(400).json({ error: "Matric number required for students" });
       }
@@ -243,7 +243,7 @@ export async function registerRoutes(
       }
 
       const { courseId, location, latitude, longitude, geofenceRadius } = req.body;
-      
+
       if (!courseId || !location || !latitude || !longitude) {
         return res.status(400).json({ error: "Missing required fields: courseId, location, latitude, longitude" });
       }
@@ -267,7 +267,7 @@ export async function registerRoutes(
         startTime: new Date(),
         isActive: true,
       });
-      
+
       res.json({ session });
     } catch (error) {
       console.error("Session creation error:", error);
@@ -279,17 +279,32 @@ export async function registerRoutes(
     try {
       const param = req.params.courseIdOrCode;
       let session = await storage.getActiveSessionByCourse(param);
-      
+
       if (!session) {
         const course = await storage.getCourseByCode(param);
         if (course) {
           session = await storage.getActiveSessionByCourse(course.id);
         }
       }
-      
+
       res.json({ session });
     } catch (error) {
       console.error("Get active session error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/analytics/lecturer", requireAuth, async (req: AuthRequest, res: Response) => {
+    try {
+      const user = await storage.getUserById(req.session.userId!);
+      if (!user || user.role !== "lecturer") {
+        return res.status(403).json({ error: "Only lecturers can access this" });
+      }
+
+      const uniqueStudents = await storage.getUniqueStudentsByLecturer(user.id);
+      res.json({ uniqueStudents });
+    } catch (error) {
+      console.error("Get lecturer analytics error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -303,7 +318,7 @@ export async function registerRoutes(
 
       const courses = await storage.getCoursesByLecturer(user.id);
       const sessionsWithCourses = [];
-      
+
       for (const course of courses) {
         const courseSessions = await storage.getSessionByCourse(course.id);
         for (const session of courseSessions) {
@@ -333,7 +348,7 @@ export async function registerRoutes(
       const course = await storage.getCourseById(session.courseId);
       const attendanceRecords = await storage.getAttendanceBySession(session.id);
 
-      res.json({ 
+      res.json({
         session: {
           ...session,
           course,
@@ -406,7 +421,7 @@ export async function registerRoutes(
       );
 
       if (distance > (session.geofenceRadius || 100)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "You are outside the classroom geofence",
           distance: Math.round(distance)
         });
@@ -414,7 +429,7 @@ export async function registerRoutes(
 
       const existingDevice = await storage.getDeviceByStudentId(user.id);
       if (existingDevice && existingDevice.deviceId !== deviceId) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "Device mismatch detected. Please use your registered device.",
           status: "suspicious"
         });
@@ -469,7 +484,7 @@ export async function registerRoutes(
   app.get("/api/attendance/session/:sessionId", requireAuth, async (req: AuthRequest, res: Response) => {
     try {
       const records = await storage.getAttendanceBySession(req.params.sessionId);
-      
+
       const recordsWithStudents = await Promise.all(
         records.map(async (record) => {
           const student = await storage.getUserById(record.studentId);
@@ -495,7 +510,7 @@ export async function registerRoutes(
       }
 
       const records = await storage.getAttendanceByStudent(user.id);
-      
+
       const recordsWithSessions = await Promise.all(
         records.map(async (record) => {
           const session = await storage.getSessionById(record.sessionId);
