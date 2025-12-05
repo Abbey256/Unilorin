@@ -99,7 +99,7 @@ export default function LecturerHome() {
             location: sessionLocation,
             latitude: position.coords.latitude.toString(),
             longitude: position.coords.longitude.toString(),
-            geofenceRadius: 100,
+            geofenceRadius: 200,
           });
         },
         (error) => {
@@ -114,7 +114,7 @@ export default function LecturerHome() {
             location: sessionLocation,
             latitude: "8.4799",
             longitude: "4.5418",
-            geofenceRadius: 100,
+            geofenceRadius: 200,
           });
         },
         { enableHighAccuracy: true, timeout: 10000 }
@@ -126,7 +126,7 @@ export default function LecturerHome() {
         location: sessionLocation,
         latitude: "8.4799",
         longitude: "4.5418",
-        geofenceRadius: 100,
+        geofenceRadius: 200,
       });
     }
   };
@@ -340,7 +340,7 @@ export default function LecturerHome() {
                 <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-blue-900">GPS Geofencing</p>
-                  <p className="text-xs text-blue-700">Your current location will be used as the class geofence center. Students must be within 100 meters to mark attendance.</p>
+                  <p className="text-xs text-blue-700">Your current location will be used as the class geofence center. Students must be within 200 meters to mark attendance.</p>
                 </div>
               </div>
             </div>
