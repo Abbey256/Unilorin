@@ -286,7 +286,7 @@ export async function registerRoutes(
         location,
         latitude: latitude.toString(),
         longitude: longitude.toString(),
-        geofenceRadius: geofenceRadius || 200,
+        geofenceRadius: geofenceRadius || 100,
         startTime: new Date(),
         isActive: true,
       });
@@ -443,7 +443,7 @@ export async function registerRoutes(
         parseFloat(session.longitude)
       );
 
-      if (distance > (session.geofenceRadius || 200)) {
+      if (distance > (session.geofenceRadius || 100)) {
         return res.status(400).json({
           error: "You are outside the classroom geofence",
           distance: Math.round(distance)

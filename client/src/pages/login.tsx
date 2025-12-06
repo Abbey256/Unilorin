@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowRight, GraduationCap, User, Eye, EyeOff } from "lucide-react";
 import bgImage from "@assets/generated_images/modern_university_campus_background_for_login_screen.png";
-import logo from "@assets/unilorinlogo_1764510252144.png";
+const logo = "/Unilorinlogo.png";
 import { api } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
@@ -24,10 +24,10 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     try {
       const response = await api.auth.login(identifier, password, role);
-      
+
       toast({
         title: "Welcome back!",
         description: `Logged in as ${response.user.name}`,
@@ -52,20 +52,20 @@ export default function LoginPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     try {
       const data = {
         ...registerData,
         password,
         role,
-        ...(role === "student" 
-          ? { matricNumber: identifier } 
+        ...(role === "student"
+          ? { matricNumber: identifier }
           : { staffId: identifier }
         ),
       };
 
       const response = await api.auth.register(data);
-      
+
       toast({
         title: "Registration Successful",
         description: `Welcome, ${response.user.name}!`,
@@ -90,15 +90,15 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-slate-900">
       <div className="absolute inset-0 z-0">
-        <img 
-          src={bgImage} 
-          alt="University Campus" 
+        <img
+          src={bgImage}
+          alt="University Campus"
           className="w-full h-full object-cover opacity-40"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-[#1a1f6c]/80 to-slate-900/90 backdrop-blur-sm" />
       </div>
 
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative z-10 w-full max-w-md p-6"
@@ -141,11 +141,11 @@ export default function LoginPage() {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Full Name
                   </label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
                     value={registerData.name}
-                    onChange={(e) => setRegisterData({...registerData, name: e.target.value})}
+                    onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
                     placeholder="John Doe"
                     className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none transition-all text-slate-900 placeholder:text-slate-300"
                   />
@@ -155,11 +155,11 @@ export default function LoginPage() {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Email Address
                   </label>
-                  <input 
-                    type="email" 
+                  <input
+                    type="email"
                     required
                     value={registerData.email}
-                    onChange={(e) => setRegisterData({...registerData, email: e.target.value})}
+                    onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
                     placeholder="john.doe@unilorin.edu.ng"
                     className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none transition-all text-slate-900 placeholder:text-slate-300"
                   />
@@ -172,7 +172,7 @@ export default function LoginPage() {
                   <select
                     required
                     value={registerData.department}
-                    onChange={(e) => setRegisterData({...registerData, department: e.target.value})}
+                    onChange={(e) => setRegisterData({ ...registerData, department: e.target.value })}
                     className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none transition-all text-slate-900"
                   >
                     <option value="">Select Department</option>
@@ -202,8 +202,8 @@ export default function LoginPage() {
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 {role === "student" ? "Matric Number" : "Staff ID"}
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
@@ -218,7 +218,7 @@ export default function LoginPage() {
                 Password
               </label>
               <div className="relative">
-                <input 
+                <input
                   type={showPassword ? "text" : "password"}
                   required
                   minLength={6}
@@ -239,7 +239,7 @@ export default function LoginPage() {
             </div>
 
             <div className="pt-2">
-              <button 
+              <button
                 type="submit"
                 disabled={isLoading}
                 className="w-full bg-[#1a1f6c] hover:bg-[#141852] text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
@@ -251,7 +251,7 @@ export default function LoginPage() {
             </div>
 
             <div className="text-center pt-4 space-y-2">
-              <button 
+              <button
                 type="button"
                 onClick={() => setIsRegisterMode(!isRegisterMode)}
                 className="text-sm text-[#1a1f6c] hover:underline font-medium"
@@ -261,7 +261,7 @@ export default function LoginPage() {
             </div>
           </form>
         </div>
-        
+
         <p className="text-center text-slate-400 text-xs mt-6">
           &copy; 2025 University of Ilorin. Powered by UniAttend.
         </p>

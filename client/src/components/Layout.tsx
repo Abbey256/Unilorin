@@ -3,7 +3,7 @@ import { LayoutDashboard, BookOpen, LogOut, User, GraduationCap, Plus, History, 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useState } from "react";
-import logo from "@assets/unilorinlogo_1764510252144.png";
+const logo = "/Unilorinlogo.png";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -53,24 +53,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 mb-2">
             Menu
           </div>
-          
+
           {isLecturer ? (
             <>
-              <button 
+              <button
                 onClick={() => handleNavigation("/lecturer/dashboard")}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors text-left ${location === '/lecturer/dashboard' ? 'bg-[#1a1f6c]/10 text-[#1a1f6c]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
               >
                 <LayoutDashboard className="w-4 h-4" />
                 Dashboard
               </button>
-              <button 
+              <button
                 onClick={() => handleNavigation("/lecturer/sessions")}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors text-left ${location.includes('/sessions') ? 'bg-[#1a1f6c]/10 text-[#1a1f6c]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
               >
                 <BookOpen className="w-4 h-4" />
                 My Classes
               </button>
-              <button 
+              <button
                 onClick={() => handleNavigation("/lecturer/courses")}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors text-left ${location === '/lecturer/courses' ? 'bg-[#1a1f6c]/10 text-[#1a1f6c]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
               >
@@ -80,14 +80,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </>
           ) : (
             <>
-              <button 
+              <button
                 onClick={() => handleNavigation("/student/dashboard")}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors text-left ${location === '/student/dashboard' ? 'bg-[#1a1f6c]/10 text-[#1a1f6c]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
               >
                 <LayoutDashboard className="w-4 h-4" />
                 Dashboard
               </button>
-              <button 
+              <button
                 onClick={() => handleNavigation("/student/history")}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors text-left ${location === '/student/history' ? 'bg-[#1a1f6c]/10 text-[#1a1f6c]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
               >
@@ -110,7 +110,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </p>
             </div>
           </div>
-          <button 
+          <button
             onClick={handleLogout}
             disabled={logoutMutation.isPending}
             className="w-full flex items-center gap-3 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50"
@@ -128,7 +128,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
           <h1 className="font-serif font-bold text-lg text-white">UniAttend</h1>
         </div>
-        <button 
+        <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="text-white p-2"
         >
@@ -142,21 +142,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <nav className="p-4 space-y-2">
               {isLecturer ? (
                 <>
-                  <button 
+                  <button
                     onClick={() => handleNavigation("/lecturer/dashboard")}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium text-left hover:bg-muted"
                   >
                     <LayoutDashboard className="w-4 h-4" />
                     Dashboard
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleNavigation("/lecturer/sessions")}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium text-left hover:bg-muted"
                   >
                     <BookOpen className="w-4 h-4" />
                     My Classes
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleNavigation("/lecturer/courses")}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium text-left hover:bg-muted"
                   >
@@ -166,14 +166,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </>
               ) : (
                 <>
-                  <button 
+                  <button
                     onClick={() => handleNavigation("/student/dashboard")}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium text-left hover:bg-muted"
                   >
                     <LayoutDashboard className="w-4 h-4" />
                     Dashboard
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleNavigation("/student/history")}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium text-left hover:bg-muted"
                   >
@@ -183,7 +183,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </>
               )}
               <hr className="my-2" />
-              <button 
+              <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md"
               >
