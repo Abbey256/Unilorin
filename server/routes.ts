@@ -85,7 +85,6 @@ export async function registerRoutes(
       return res.status(401).json({ error: "Unauthorized" });
     }
     next();
-    next();
   };
 
   const requireAdmin = async (req: AuthRequest, res: Response, next: Function) => {
