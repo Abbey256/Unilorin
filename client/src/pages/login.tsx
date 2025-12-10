@@ -99,8 +99,8 @@ export default function LoginPage() {
           title: "Admin Setup",
           description: data.message,
         });
-        if (data.email && data.password) {
-          setIdentifier(data.email);
+        if (data.staffId && data.password) {
+          setIdentifier(data.staffId); // Use Staff ID, not Email
           setPassword(data.password);
           setRole("admin");
         }

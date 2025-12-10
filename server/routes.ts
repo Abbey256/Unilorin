@@ -664,7 +664,16 @@ export async function registerRoutes(
     try {
       const existingAdmin = await storage.getUserByEmail("admin@unilorin.edu.ng");
       if (existingAdmin) {
-        return res.json({ message: "Admin already exists", email: "admin@unilorin.edu.ng" });
+        // Ensure it's active if it exists
+        if (!existingAdmin.isActive) {
+          await storage.toggleUserStatus(existingAdmin.id, true);
+        }
+        return res.json({
+          message: "Admin already exists (Activated)",
+          email: "admin@unilorin.edu.ng",
+          staffId: existingAdmin.staffId, // Return Staff ID
+          password: "admin123"
+        });
       }
 
       const adminUser = await storage.createUser({
@@ -678,7 +687,12 @@ export async function registerRoutes(
         isActive: true,
       });
 
-      res.json({ message: "Admin created", email: adminUser.email, password: "admin123" });
+      res.json({
+        message: "Admin created",
+        email: adminUser.email,
+        staffId: adminUser.staffId, // Return Staff ID
+        password: "admin123"
+      });
     } catch (error) {
       console.error("Setup error:", error);
       res.status(500).json({ error: "Setup failed" });
