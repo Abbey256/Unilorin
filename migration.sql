@@ -10,3 +10,6 @@ CREATE TABLE IF NOT EXISTS semesters (
   is_active BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMP NOT NULL DEFAULT now()
 );
+
+-- Add expires_at column to sessions table
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;

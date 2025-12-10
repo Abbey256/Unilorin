@@ -67,6 +67,15 @@ export interface IStorage {
   createSemester(semester: InsertSemester): Promise<Semester>;
   getSemesters(): Promise<Semester[]>;
   toggleSemesterStatus(semesterId: string, isActive: boolean): Promise<Semester>;
+  getStudentHistory(studentId: string): Promise<{
+    sessionId: string;
+    courseCode: string;
+    courseTitle: string;
+    startTime: Date;
+    endTime: Date | null;
+    status: "present" | "absent";
+    markedAt: Date | null;
+  }[]>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -553,39 +562,58 @@ export class SupabaseStorage implements IStorage {
     attendedSessions: number;
     percentage: number;
   }[]> {
-    // 1. Get all attendance records for the student
+    // 1. Get student details to find their department
+    const student = await this.getUserById(studentId);
+    if (!student) return [];
+
+    // 2. Get all attendance records for the student
     const attendanceRecords = await this.getAttendanceByStudent(studentId);
 
-    if (attendanceRecords.length === 0) return [];
+    // 3. Identify relevant courses:
+    //    a. Courses the student has attended (from records)
+    //    b. Courses in the student's department (expected to attend)
 
-    // 2. Extract unique session IDs and fetch those sessions
-    const sessionIds = Array.from(new Set(attendanceRecords.map(r => r.sessionId)));
-    const { data: attendedSessions, error: sessionError } = await supabase
-      .from('sessions')
-      .select('*')
-      .in('id', sessionIds);
+    // Get course IDs from attendance
+    const attendedSessionIds = Array.from(new Set(attendanceRecords.map(r => r.sessionId)));
+    let attendedCourseIds: string[] = [];
 
-    if (sessionError || !attendedSessions) return [];
+    if (attendedSessionIds.length > 0) {
+      const { data: sessions } = await supabase
+        .from('sessions')
+        .select('course_id')
+        .in('id', attendedSessionIds);
 
-    // 3. Extract unique course IDs from the sessions the student attended
-    const courseIds = Array.from(new Set(attendedSessions.map(s => s.course_id)));
+      if (sessions) {
+        attendedCourseIds = sessions.map(s => s.course_id);
+      }
+    }
 
-    // 4. Fetch course details for these courses
+    // Get courses from department
+    let departmentCourses: Course[] = [];
+    if (student.department) {
+      departmentCourses = await this.getCoursesByDepartment(student.department);
+    }
+
+    // Combine unique course IDs
+    const allRelevantCourseIds = Array.from(new Set([
+      ...attendedCourseIds,
+      ...departmentCourses.map(c => c.id)
+    ]));
+
+    if (allRelevantCourseIds.length === 0) return [];
+
+    // 4. Fetch course details for all relevant courses
     const { data: courses, error: courseError } = await supabase
       .from('courses')
       .select('*')
-      .in('id', courseIds);
+      .in('id', allRelevantCourseIds);
 
     if (courseError || !courses) return [];
 
     // 5. For each course, calculate stats
     const stats = await Promise.all(courses.map(async (course) => {
-      // Get total COMPLETED sessions for this course (where endTime is not null)
-      // We also include active sessions if the student has already marked attendance? 
-      // Usually "total sessions" implies "sessions that have happened". 
-      // For simplicity, we count all sessions that are NOT active OR sessions that are active but started before now.
-      // Actually, let's just count ALL sessions for the course to get "Total Classes Held".
-      const { count, error: countError } = await supabase
+      // Get total sessions for this course
+      const { count } = await supabase
         .from('sessions')
         .select('*', { count: 'exact', head: true })
         .eq('course_id', course.id);
@@ -593,11 +621,21 @@ export class SupabaseStorage implements IStorage {
       const totalSessions = count || 0;
 
       // Count how many sessions of THIS course the student attended
-      // We can filter the `attendanceRecords` we already fetched
-      const studentAttendedCount = attendanceRecords.filter(r => {
-        const session = attendedSessions.find(s => s.id === r.sessionId);
-        return session && session.course_id === course.id;
-      }).length;
+      // We need to check which of the student's attendance records belong to sessions of this course
+      // Optimization: We can filter the `attendanceRecords` list if we map session->course first.
+      // Since we don't have that map handy for *all* records without fetching all sessions, 
+      // let's do a quick count query for accuracy or use the loaded data if possible.
+      // To be safe and accurate:
+      const { count: attendedCount } = await supabase
+        .from('attendance_records')
+        .select('id', { count: 'exact', head: true })
+        .eq('student_id', studentId)
+        .in('session_id', (
+          await supabase.from('sessions').select('id').eq('course_id', course.id)
+        ).data?.map(s => s.id) || []
+        );
+
+      const studentAttendedCount = attendedCount || 0;
 
       return {
         courseId: course.id,
@@ -678,6 +716,58 @@ export class SupabaseStorage implements IStorage {
 
     if (error) throw new Error(error.message);
     return this.mapSemester(data);
+  }
+
+  async getStudentHistory(studentId: string): Promise<{
+    sessionId: string;
+    courseCode: string;
+    courseTitle: string;
+    startTime: Date;
+    endTime: Date | null;
+    status: "present" | "absent";
+    markedAt: Date | null;
+  }[]> {
+    // 1. Get student details
+    const student = await this.getUserById(studentId);
+    if (!student || !student.department) return [];
+
+    // 2. Get all courses in student's department
+    const courses = await this.getCoursesByDepartment(student.department);
+    if (courses.length === 0) return [];
+    const courseIds = courses.map(c => c.id);
+
+    // 3. Get all PAST sessions for these courses
+    // "Past" means endTime is not null OR expiresAt < now
+    const now = new Date().toISOString();
+    const { data: sessions, error: sessionError } = await supabase
+      .from('sessions')
+      .select('*')
+      .in('course_id', courseIds)
+      .or(`end_time.not.is.null,expires_at.lt.${now}`) // Logic: Ended OR Expired
+      .order('start_time', { ascending: false });
+
+    if (sessionError || !sessions) return [];
+
+    // 4. Get all attendance records for the student
+    const attendanceRecords = await this.getAttendanceByStudent(studentId);
+
+    // 5. Merge data
+    const history = sessions.map(session => {
+      const record = attendanceRecords.find(r => r.sessionId === session.id);
+      const course = courses.find(c => c.id === session.course_id);
+
+      return {
+        sessionId: session.id,
+        courseCode: course?.code || "Unknown",
+        courseTitle: course?.title || "Unknown",
+        startTime: new Date(session.start_time),
+        endTime: session.end_time ? new Date(session.end_time) : null,
+        status: record ? "present" : "absent",
+        markedAt: record ? new Date(record.markedAt) : null,
+      };
+    });
+
+    return history as any;
   }
 }
 

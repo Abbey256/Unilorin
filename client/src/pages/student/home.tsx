@@ -41,8 +41,12 @@ export default function StudentHome() {
   const courseStats = statsData?.stats || [];
   const user = userData?.user;
 
-  const presentCount = attendanceRecords.filter((r: any) => r.status === "verified").length;
-  const totalClasses = attendanceRecords.length;
+  // Calculate overall stats from courseStats to account for missed sessions
+  const totalSessionsAll = courseStats.reduce((acc: number, curr: any) => acc + curr.totalSessions, 0);
+  const attendedSessionsAll = courseStats.reduce((acc: number, curr: any) => acc + curr.attendedSessions, 0);
+
+  const presentCount = attendedSessionsAll;
+  const totalClasses = totalSessionsAll;
   const attendanceRate = totalClasses > 0 ? Math.round((presentCount / totalClasses) * 100) : 0;
 
   return (

@@ -570,21 +570,8 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Only students can view their attendance" });
       }
 
-      const records = await storage.getAttendanceByStudent(user.id);
-
-      const recordsWithSessions = await Promise.all(
-        records.map(async (record) => {
-          const session = await storage.getSessionById(record.sessionId);
-          const course = session ? await storage.getCourseById(session.courseId) : null;
-          return {
-            ...record,
-            session,
-            course,
-          };
-        })
-      );
-
-      res.json({ records: recordsWithSessions });
+      const history = await storage.getStudentHistory(user.id);
+      res.json({ records: history });
     } catch (error) {
       console.error("Get student attendance error:", error);
       res.status(500).json({ error: "Internal server error" });
