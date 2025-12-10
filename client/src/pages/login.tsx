@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowRight, GraduationCap, User, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, GraduationCap, User, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import bgImage from "@assets/generated_images/modern_university_campus_background_for_login_screen.png";
 const logo = "/Unilorinlogo.png";
 import { api } from "@/lib/api";
@@ -9,7 +9,7 @@ import { toast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const [role, setRole] = useState<"student" | "lecturer">("student");
+  const [role, setRole] = useState<"student" | "lecturer" | "admin">("student");
   const [isLoading, setIsLoading] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -35,8 +35,10 @@ export default function LoginPage() {
 
       if (role === "student") {
         setLocation("/student/dashboard");
-      } else {
+      } else if (role === "lecturer") {
         setLocation("/lecturer/dashboard");
+      } else {
+        setLocation("/admin/dashboard");
       }
     } catch (error: any) {
       toast({
@@ -87,6 +89,35 @@ export default function LoginPage() {
     }
   };
 
+  const handleSetupAdmin = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/setup/admin");
+      const data = await res.json();
+      if (res.ok) {
+        toast({
+          title: "Admin Setup",
+          description: data.message,
+        });
+        if (data.email && data.password) {
+          setIdentifier(data.email);
+          setPassword(data.password);
+          setRole("admin");
+        }
+      } else {
+        throw new Error(data.error || "Setup failed");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Setup Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-slate-900">
       <div className="absolute inset-0 z-0">
@@ -116,20 +147,27 @@ export default function LoginPage() {
           </div>
 
           <div className="px-8 mb-6">
-            <div className="grid grid-cols-2 bg-slate-100 p-1 rounded-lg">
+            <div className="grid grid-cols-3 bg-slate-100 p-1 rounded-lg">
               <button
                 onClick={() => setRole("student")}
-                className={`flex items-center justify-center gap-2 text-sm font-medium py-2 rounded-md transition-all ${role === "student" ? "bg-white text-[#1a1f6c] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                className={`flex items-center justify-center gap-2 text-xs font-medium py-2 rounded-md transition-all ${role === "student" ? "bg-white text-[#1a1f6c] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
               >
-                <GraduationCap className="w-4 h-4" />
+                <GraduationCap className="w-3 h-3" />
                 Student
               </button>
               <button
                 onClick={() => setRole("lecturer")}
-                className={`flex items-center justify-center gap-2 text-sm font-medium py-2 rounded-md transition-all ${role === "lecturer" ? "bg-white text-[#1a1f6c] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                className={`flex items-center justify-center gap-2 text-xs font-medium py-2 rounded-md transition-all ${role === "lecturer" ? "bg-white text-[#1a1f6c] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
               >
-                <User className="w-4 h-4" />
+                <User className="w-3 h-3" />
                 Lecturer
+              </button>
+              <button
+                onClick={() => setRole("admin")}
+                className={`flex items-center justify-center gap-2 text-xs font-medium py-2 rounded-md transition-all ${role === "admin" ? "bg-white text-[#1a1f6c] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                <ShieldCheck className="w-3 h-3" />
+                Admin
               </button>
             </div>
           </div>
@@ -257,6 +295,16 @@ export default function LoginPage() {
                 className="text-sm text-[#1a1f6c] hover:underline font-medium"
               >
                 {isRegisterMode ? "Already have an account? Sign In" : "Don't have an account? Register"}
+              </button>
+            </div>
+
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={handleSetupAdmin}
+                className="text-xs text-slate-400 hover:text-[#1a1f6c] hover:underline"
+              >
+                Initialize Admin Account
               </button>
             </div>
           </form>

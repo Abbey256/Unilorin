@@ -16,6 +16,7 @@ export default function StudentAttendance() {
   const [errorMessage, setErrorMessage] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isOfflineSaved, setIsOfflineSaved] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<{ lat: number; lng: number; dist?: number } | null>(null);
 
   useEffect(() => {
     async function initialize() {
@@ -74,10 +75,22 @@ export default function StudentAttendance() {
           setProgress(100);
           setTimeout(() => setStep("success"), 500);
         } catch (error: any) {
+          // Extract distance if available in error response
+          if (error.distance) {
+            setDebugInfo(prev => prev ? { ...prev, dist: error.distance } : null);
+          }
           setErrorMessage(error.message || "Failed to verify location");
           setStep("error");
         }
       };
+
+      // Initial position check for debug display
+      getCurrentPosition().then(pos => {
+        setDebugInfo({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        });
+      }).catch(() => { });
 
       verifyAndMark();
     }
@@ -153,6 +166,11 @@ export default function StudentAttendance() {
                       />
                     </div>
                     <p className="text-xs text-slate-400">Validating GPS coordinates and device fingerprint</p>
+                    {debugInfo && (
+                      <div className="text-[10px] text-slate-400 font-mono bg-slate-50 p-2 rounded border border-slate-100">
+                        <p>Detected: {debugInfo.lat.toFixed(6)}, {debugInfo.lng.toFixed(6)}</p>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -196,6 +214,11 @@ export default function StudentAttendance() {
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900">Verification Failed</h2>
                   <p className="text-slate-500 mt-2">{errorMessage}</p>
+                  {debugInfo && debugInfo.dist && (
+                    <p className="text-xs text-red-500 font-medium mt-1">
+                      Distance to class: {Math.round(debugInfo.dist)}m (Max allowed: 100m)
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-3">
                   <button

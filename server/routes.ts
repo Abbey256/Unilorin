@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
-import { insertUserSchema, insertCourseSchema, insertSessionSchema, insertAttendanceRecordSchema, UNILORIN_DEPARTMENTS } from "@shared/schema";
+import { insertUserSchema, insertCourseSchema, insertSessionSchema, insertAttendanceRecordSchema, insertSemesterSchema, UNILORIN_DEPARTMENTS } from "@shared/schema";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { WebSocketServer, WebSocket } from "ws";
@@ -83,6 +83,18 @@ export async function registerRoutes(
   const requireAuth = (req: AuthRequest, res: Response, next: Function) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Unauthorized" });
+    }
+    next();
+    next();
+  };
+
+  const requireAdmin = async (req: AuthRequest, res: Response, next: Function) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
     }
     next();
   };
@@ -176,6 +188,10 @@ export async function registerRoutes(
 
       if (!user) {
         return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      if (!user.isActive) {
+        return res.status(403).json({ error: "Account is deactivated. Please contact admin." });
       }
 
       const isValidPassword = await storage.validatePassword(user, password);
@@ -281,6 +297,14 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Active session already exists for this course" });
       }
 
+      const durationMinutes = req.body.duration ? parseInt(req.body.duration) : null;
+      let expiresAt = null;
+
+      if (durationMinutes && durationMinutes > 0) {
+        expiresAt = new Date();
+        expiresAt.setMinutes(expiresAt.getMinutes() + durationMinutes);
+      }
+
       const session = await storage.createSession({
         courseId,
         location,
@@ -288,6 +312,7 @@ export async function registerRoutes(
         longitude: longitude.toString(),
         geofenceRadius: geofenceRadius || 100,
         startTime: new Date(),
+        expiresAt: expiresAt,
         isActive: true,
       });
 
@@ -307,6 +332,14 @@ export async function registerRoutes(
         const course = await storage.getCourseByCode(param);
         if (course) {
           session = await storage.getActiveSessionByCourse(course.id);
+        }
+      }
+
+      if (session) {
+        // Check if expired
+        if (session.isActive && session.expiresAt && new Date() > session.expiresAt) {
+          await storage.endSession(session.id);
+          session = undefined;
         }
       }
 
@@ -431,6 +464,12 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Session is not active" });
       }
 
+      // Check for expiry
+      if (session.expiresAt && new Date() > session.expiresAt) {
+        await storage.endSession(session.id);
+        return res.status(400).json({ error: "Session has expired" });
+      }
+
       const alreadyMarked = await storage.checkAttendanceExists(sessionId, user.id);
       if (alreadyMarked) {
         return res.status(400).json({ error: "Attendance already marked for this session" });
@@ -550,6 +589,99 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Get student attendance error:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/attendance/stats", requireAuth, async (req: AuthRequest, res: Response) => {
+    try {
+      const user = await storage.getUserById(req.session.userId!);
+      if (!user || user.role !== "student") {
+        return res.status(403).json({ error: "Only students can view their stats" });
+      }
+
+      const stats = await storage.getStudentStats(user.id);
+      res.json({ stats });
+    } catch (error) {
+      console.error("Get student stats error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Admin Routes
+  app.get("/api/admin/users", requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json({ users: users.map(u => ({ ...u, password: undefined })) });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/admin/users/:id/toggle-status", requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const { isActive } = req.body;
+      const user = await storage.toggleUserStatus(req.params.id, isActive);
+      res.json({ user: { ...user, password: undefined } });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/semesters", requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const semesters = await storage.getSemesters();
+      res.json({ semesters });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/admin/semesters", requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const validatedData = insertSemesterSchema.parse(req.body);
+      const semester = await storage.createSemester(validatedData);
+      res.json({ semester });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/admin/semesters/:id/toggle-status", requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const { isActive } = req.body;
+      const semester = await storage.toggleSemesterStatus(req.params.id, isActive);
+      res.json({ semester });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Temporary Setup Route
+  app.get("/api/setup/admin", async (_req: Request, res: Response) => {
+    try {
+      const existingAdmin = await storage.getUserByEmail("admin@unilorin.edu.ng");
+      if (existingAdmin) {
+        return res.json({ message: "Admin already exists", email: "admin@unilorin.edu.ng" });
+      }
+
+      const adminUser = await storage.createUser({
+        name: "Super Admin",
+        email: "admin@unilorin.edu.ng",
+        password: "admin123",
+        role: "admin",
+        matricNumber: null,
+        staffId: "ADMIN001",
+        department: null,
+        isActive: true,
+      });
+
+      res.json({ message: "Admin created", email: adminUser.email, password: "admin123" });
+    } catch (error) {
+      console.error("Setup error:", error);
+      res.status(500).json({ error: "Setup failed" });
     }
   });
 

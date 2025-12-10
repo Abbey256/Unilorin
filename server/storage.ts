@@ -13,6 +13,8 @@ import type {
   InsertDevice,
   Department,
   InsertDepartment,
+  Semester,
+  InsertSemester,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -50,6 +52,21 @@ export interface IStorage {
   updateDeviceLastUsed(deviceId: string): Promise<void>;
   getUniqueStudentsByLecturer(lecturerId: string): Promise<number>;
   getCoursesWithActiveSessions(): Promise<Course[]>;
+  getStudentStats(studentId: string): Promise<{
+    courseId: string;
+    courseCode: string;
+    courseTitle: string;
+    totalSessions: number;
+    attendedSessions: number;
+    percentage: number;
+  }[]>;
+
+  // Admin
+  getAllUsers(): Promise<User[]>;
+  toggleUserStatus(userId: string, isActive: boolean): Promise<User>;
+  createSemester(semester: InsertSemester): Promise<Semester>;
+  getSemesters(): Promise<Semester[]>;
+  toggleSemesterStatus(semesterId: string, isActive: boolean): Promise<Semester>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -262,7 +279,9 @@ export class SupabaseStorage implements IStorage {
         latitude: insertSession.latitude,
         longitude: insertSession.longitude,
         geofence_radius: insertSession.geofenceRadius,
+
         start_time: insertSession.startTime,
+        expires_at: insertSession.expiresAt,
         is_active: insertSession.isActive,
       })
       .select()
@@ -393,6 +412,18 @@ export class SupabaseStorage implements IStorage {
       password: data.password,
       role: data.role,
       department: data.department,
+      isActive: data.is_active,
+      createdAt: new Date(data.created_at),
+    };
+  }
+
+  private mapSemester(data: any): Semester {
+    return {
+      id: data.id,
+      name: data.name,
+      startDate: new Date(data.start_date),
+      endDate: new Date(data.end_date),
+      isActive: data.is_active,
       createdAt: new Date(data.created_at),
     };
   }
@@ -429,6 +460,7 @@ export class SupabaseStorage implements IStorage {
       geofenceRadius: data.geofence_radius,
       startTime: new Date(data.start_time),
       endTime: data.end_time ? new Date(data.end_time) : null,
+      expiresAt: data.expires_at ? new Date(data.expires_at) : null,
       isActive: data.is_active,
       createdAt: new Date(data.created_at),
     };
@@ -511,6 +543,141 @@ export class SupabaseStorage implements IStorage {
 
     if (courseError || !courses) return [];
     return courses.map(this.mapCourse);
+  }
+
+  async getStudentStats(studentId: string): Promise<{
+    courseId: string;
+    courseCode: string;
+    courseTitle: string;
+    totalSessions: number;
+    attendedSessions: number;
+    percentage: number;
+  }[]> {
+    // 1. Get all attendance records for the student
+    const attendanceRecords = await this.getAttendanceByStudent(studentId);
+
+    if (attendanceRecords.length === 0) return [];
+
+    // 2. Extract unique session IDs and fetch those sessions
+    const sessionIds = Array.from(new Set(attendanceRecords.map(r => r.sessionId)));
+    const { data: attendedSessions, error: sessionError } = await supabase
+      .from('sessions')
+      .select('*')
+      .in('id', sessionIds);
+
+    if (sessionError || !attendedSessions) return [];
+
+    // 3. Extract unique course IDs from the sessions the student attended
+    const courseIds = Array.from(new Set(attendedSessions.map(s => s.course_id)));
+
+    // 4. Fetch course details for these courses
+    const { data: courses, error: courseError } = await supabase
+      .from('courses')
+      .select('*')
+      .in('id', courseIds);
+
+    if (courseError || !courses) return [];
+
+    // 5. For each course, calculate stats
+    const stats = await Promise.all(courses.map(async (course) => {
+      // Get total COMPLETED sessions for this course (where endTime is not null)
+      // We also include active sessions if the student has already marked attendance? 
+      // Usually "total sessions" implies "sessions that have happened". 
+      // For simplicity, we count all sessions that are NOT active OR sessions that are active but started before now.
+      // Actually, let's just count ALL sessions for the course to get "Total Classes Held".
+      const { count, error: countError } = await supabase
+        .from('sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('course_id', course.id);
+
+      const totalSessions = count || 0;
+
+      // Count how many sessions of THIS course the student attended
+      // We can filter the `attendanceRecords` we already fetched
+      const studentAttendedCount = attendanceRecords.filter(r => {
+        const session = attendedSessions.find(s => s.id === r.sessionId);
+        return session && session.course_id === course.id;
+      }).length;
+
+      return {
+        courseId: course.id,
+        courseCode: course.code,
+        courseTitle: course.title,
+        totalSessions,
+        attendedSessions: studentAttendedCount,
+        percentage: totalSessions > 0 ? Math.round((studentAttendedCount / totalSessions) * 100) : 0
+      };
+    }));
+
+    return stats;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) return [];
+    return data.map(this.mapUser);
+  }
+
+  async toggleUserStatus(userId: string, isActive: boolean): Promise<User> {
+    const { data, error } = await supabase
+      .from('users')
+      .update({ is_active: isActive })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return this.mapUser(data);
+  }
+
+  async createSemester(insertSemester: InsertSemester): Promise<Semester> {
+    const { data, error } = await supabase
+      .from('semesters')
+      .insert({
+        name: insertSemester.name,
+        start_date: insertSemester.startDate,
+        end_date: insertSemester.endDate,
+        is_active: insertSemester.isActive,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return this.mapSemester(data);
+  }
+
+  async getSemesters(): Promise<Semester[]> {
+    const { data, error } = await supabase
+      .from('semesters')
+      .select('*')
+      .order('start_date', { ascending: false });
+
+    if (error) return [];
+    return data.map(this.mapSemester);
+  }
+
+  async toggleSemesterStatus(semesterId: string, isActive: boolean): Promise<Semester> {
+    // If activating, deactivate all others first (optional rule, but good for "Active Semester")
+    if (isActive) {
+      await supabase
+        .from('semesters')
+        .update({ is_active: false })
+        .neq('id', semesterId);
+    }
+
+    const { data, error } = await supabase
+      .from('semesters')
+      .update({ is_active: isActive })
+      .eq('id', semesterId)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return this.mapSemester(data);
   }
 }
 

@@ -13,6 +13,10 @@ import LecturerSession from "@/pages/lecturer/session";
 import LecturerSessions from "@/pages/lecturer/sessions";
 import LecturerCourses from "@/pages/lecturer/courses";
 import StudentHistory from "@/pages/student/history";
+import AdminHome from "@/pages/admin/home";
+import AdminUsers from "@/pages/admin/users";
+import AdminCourses from "@/pages/admin/courses";
+import AdminSettings from "@/pages/admin/settings";
 
 function Router() {
   return (
@@ -29,6 +33,12 @@ function Router() {
       <Route path="/lecturer/sessions" component={LecturerSessions} />
       <Route path="/lecturer/session/active" component={LecturerSession} />
       <Route path="/lecturer/courses" component={LecturerCourses} />
+
+      {/* Admin Routes */}
+      <Route path="/admin/dashboard" component={AdminHome} />
+      <Route path="/admin/users" component={AdminUsers} />
+      <Route path="/admin/courses" component={AdminCourses} />
+      <Route path="/admin/settings" component={AdminSettings} />
 
       <Route component={NotFound} />
     </Switch>

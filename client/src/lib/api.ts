@@ -80,6 +80,26 @@ export const api = {
     getBySession: (sessionId: string) =>
       fetchApi(`/attendance/session/${sessionId}`),
     getStudentHistory: () => fetchApi("/attendance/student"),
+    getStudentStats: () => fetchApi("/attendance/stats"),
+  },
+  admin: {
+    getUsers: () => fetchApi("/admin/users"),
+    toggleUserStatus: (userId: string, isActive: boolean) =>
+      fetchApi(`/admin/users/${userId}/toggle-status`, {
+        method: "POST",
+        body: JSON.stringify({ isActive }),
+      }),
+    getSemesters: () => fetchApi("/admin/semesters"),
+    createSemester: (data: any) =>
+      fetchApi("/admin/semesters", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    toggleSemesterStatus: (semesterId: string, isActive: boolean) =>
+      fetchApi(`/admin/semesters/${semesterId}/toggle-status`, {
+        method: "POST",
+        body: JSON.stringify({ isActive }),
+      }),
   },
 };
 
@@ -95,37 +115,49 @@ export function getDeviceId(): string {
 export function getCurrentPosition(): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error("Geolocation is not supported"));
+      reject(new Error("Geolocation is not supported by this browser."));
       return;
     }
 
     const options = {
       enableHighAccuracy: true,
-      timeout: 30000, // Increased to 30 seconds
+      timeout: 15000, // 15 seconds
       maximumAge: 0,
     };
 
-    // First attempt with high accuracy
     navigator.geolocation.getCurrentPosition(
       resolve,
       (error) => {
-        // If timeout or error, try one more time with slightly relaxed settings
+        let errorMessage = "Unknown location error";
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = "Location permission denied. Please enable location services.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = "Location information is unavailable. Please check your GPS signal.";
+            break;
+          case error.TIMEOUT:
+            errorMessage = "Location request timed out. Please move to an open area and try again.";
+            break;
+        }
+
+        // Retry logic for timeout or position unavailable
         if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
           console.log("Retrying location with relaxed settings...");
           navigator.geolocation.getCurrentPosition(
             resolve,
             (retryError) => {
-              // If it fails again, reject with a clear message
-              reject(new Error("Could not get precise location. Please move to an open area and try again."));
+              // If it fails again, use the specific error message
+              reject(new Error(errorMessage));
             },
             {
-              enableHighAccuracy: true, // Still try high accuracy
-              timeout: 45000, // Longer timeout for retry
-              maximumAge: 5000, // Accept cached position up to 5s old
+              enableHighAccuracy: false, // Try with lower accuracy (WiFi/Cell)
+              timeout: 20000,
+              maximumAge: 10000,
             }
           );
         } else {
-          reject(error);
+          reject(new Error(errorMessage));
         }
       },
       options

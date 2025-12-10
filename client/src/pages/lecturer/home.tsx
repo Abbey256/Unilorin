@@ -41,9 +41,12 @@ export default function LecturerHome() {
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState("");
   const [sessionLocation, setSessionLocation] = useState("");
+  const [sessionDuration, setSessionDuration] = useState("30"); // Default 30 mins
   const [locationSource, setLocationSource] = useState<"gps" | "preset">("preset");
   const [selectedPreset, setSelectedPreset] = useState(UNILORIN_LOCATIONS[0].name);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [detectedLocation, setDetectedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const { data: coursesData, isLoading: loadingCourses } = useQuery({
     queryKey: ["courses"],
@@ -95,6 +98,32 @@ export default function LecturerHome() {
     },
   });
 
+  const detectLocation = () => {
+    setIsGettingLocation(true);
+    setLocationError(null);
+
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by this browser.");
+      setIsGettingLocation(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setIsGettingLocation(false);
+        setDetectedLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+      },
+      (error) => {
+        setIsGettingLocation(false);
+        setLocationError("Could not get your location. Please check permissions.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const handleCreateSession = () => {
     if (!selectedCourse || !sessionLocation) {
       toast({ title: "Error", description: "Please fill all fields", variant: "destructive" });
@@ -109,52 +138,25 @@ export default function LecturerHome() {
         latitude: preset.lat,
         longitude: preset.lng,
         geofenceRadius: preset.radius,
+        duration: sessionDuration === "manual" ? null : parseInt(sessionDuration),
       });
       return;
     }
 
-    setIsGettingLocation(true);
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setIsGettingLocation(false);
-          createSessionMutation.mutate({
-            courseId: selectedCourse,
-            location: sessionLocation,
-            latitude: position.coords.latitude.toString(),
-            longitude: position.coords.longitude.toString(),
-            geofenceRadius: 200,
-          });
-        },
-        (error) => {
-          setIsGettingLocation(false);
-          toast({
-            title: "Location Error",
-            description: "Could not get your location. Using default coordinates for Unilorin.",
-            variant: "destructive"
-          });
-          // Fallback to Main Gate if GPS fails
-          createSessionMutation.mutate({
-            courseId: selectedCourse,
-            location: sessionLocation,
-            latitude: "8.4799",
-            longitude: "4.5418",
-            geofenceRadius: 200,
-          });
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    } else {
-      setIsGettingLocation(false);
-      createSessionMutation.mutate({
-        courseId: selectedCourse,
-        location: sessionLocation,
-        latitude: "8.4799",
-        longitude: "4.5418",
-        geofenceRadius: 200,
-      });
+    // For GPS source, we must have detected location
+    if (!detectedLocation) {
+      toast({ title: "Error", description: "Please detect your location first", variant: "destructive" });
+      return;
     }
+
+    createSessionMutation.mutate({
+      courseId: selectedCourse,
+      location: sessionLocation,
+      latitude: detectedLocation.lat.toString(),
+      longitude: detectedLocation.lng.toString(),
+      geofenceRadius: 100, // Enforce 100m radius as per spec
+      duration: sessionDuration === "manual" ? null : parseInt(sessionDuration),
+    });
   };
 
   return (
@@ -360,6 +362,21 @@ export default function LecturerHome() {
                 />
               </div>
 
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Duration</label>
+                <select
+                  value={sessionDuration}
+                  onChange={(e) => setSessionDuration(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none"
+                >
+                  <option value="5">5 Minutes</option>
+                  <option value="10">10 Minutes</option>
+                  <option value="30">30 Minutes</option>
+                  <option value="60">1 Hour</option>
+                  <option value="manual">Manual (No Limit)</option>
+                </select>
+              </div>
+
               <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
@@ -376,7 +393,10 @@ export default function LecturerHome() {
                 <label className="text-sm font-medium text-slate-700 block">Location Source</label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
-                    onClick={() => setLocationSource("gps")}
+                    onClick={() => {
+                      setLocationSource("gps");
+                      if (!detectedLocation) detectLocation();
+                    }}
                     className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${locationSource === "gps"
                       ? "bg-[#1a1f6c] text-white border-[#1a1f6c]"
                       : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
@@ -409,6 +429,33 @@ export default function LecturerHome() {
                     <p className="text-xs text-slate-500 mt-1 ml-1">
                       Using preset coordinates for {selectedPreset}.
                     </p>
+                  </div>
+                )}
+
+                {locationSource === "gps" && (
+                  <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-slate-700">Detected Coordinates</span>
+                      <button
+                        onClick={detectLocation}
+                        disabled={isGettingLocation}
+                        className="text-xs text-[#1a1f6c] hover:underline disabled:opacity-50"
+                      >
+                        {isGettingLocation ? "Detecting..." : "Refresh"}
+                      </button>
+                    </div>
+
+                    {locationError ? (
+                      <p className="text-xs text-red-500">{locationError}</p>
+                    ) : detectedLocation ? (
+                      <div className="font-mono text-xs text-slate-600">
+                        <p>Lat: {detectedLocation.lat.toFixed(6)}</p>
+                        <p>Lng: {detectedLocation.lng.toFixed(6)}</p>
+                        <p className="text-green-600 mt-1">✓ Ready to start session</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500">Click Refresh to detect location...</p>
+                    )}
                   </div>
                 )}
               </div>

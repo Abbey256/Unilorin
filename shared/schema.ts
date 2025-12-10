@@ -20,6 +20,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   role: text("role").notNull(),
   department: text("department"),
+  isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -42,6 +43,7 @@ export const sessions = pgTable("sessions", {
   geofenceRadius: integer("geofence_radius").default(100),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time"),
+  expiresAt: timestamp("expires_at"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -67,6 +69,15 @@ export const devices = pgTable("devices", {
   userAgent: text("user_agent"),
   isActive: boolean("is_active").default(true).notNull(),
   lastUsed: timestamp("last_used").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const semesters = pgTable("semesters", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // e.g. "2024/2025 Rain"
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  isActive: boolean("is_active").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -101,6 +112,11 @@ export const insertDeviceSchema = createInsertSchema(devices).omit({
   lastUsed: true,
 });
 
+export const insertSemesterSchema = createInsertSchema(semesters).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
 export type Department = typeof departments.$inferSelect;
 
@@ -118,6 +134,9 @@ export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
 
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
 export type Device = typeof devices.$inferSelect;
+
+export type InsertSemester = z.infer<typeof insertSemesterSchema>;
+export type Semester = typeof semesters.$inferSelect;
 
 export const UNILORIN_DEPARTMENTS = [
   { code: "CSC", name: "Computer Science", faculty: "Communication and Information Sciences" },

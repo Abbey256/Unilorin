@@ -25,6 +25,11 @@ export default function StudentHome() {
     queryFn: api.attendance.getStudentHistory,
   });
 
+  const { data: statsData, isLoading: loadingStats } = useQuery({
+    queryKey: ["student-stats"],
+    queryFn: api.attendance.getStudentStats,
+  });
+
   const { data: userData } = useQuery({
     queryKey: ["user"],
     queryFn: api.auth.me,
@@ -33,8 +38,9 @@ export default function StudentHome() {
 
   const courses: Course[] = coursesData?.courses || [];
   const attendanceRecords = historyData?.records || [];
+  const courseStats = statsData?.stats || [];
   const user = userData?.user;
-  
+
   const presentCount = attendanceRecords.filter((r: any) => r.status === "verified").length;
   const totalClasses = attendanceRecords.length;
   const attendanceRate = totalClasses > 0 ? Math.round((presentCount / totalClasses) * 100) : 0;
@@ -49,13 +55,13 @@ export default function StudentHome() {
           </p>
         </header>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-gradient-to-br from-[#1a1f6c] to-[#141852] rounded-2xl p-8 text-white shadow-xl relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
-          
+
           <div className="relative z-10">
             <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium mb-4">
               <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
@@ -65,7 +71,7 @@ export default function StudentHome() {
             <p className="text-blue-100 text-sm mb-6">
               Select a course below to mark attendance. You must be within 100m of the classroom.
             </p>
-            
+
             <div className="flex items-center gap-4 text-blue-100 text-sm">
               <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> GPS Verified</span>
               <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> Real-time</span>
@@ -84,7 +90,7 @@ export default function StudentHome() {
               {attendanceRate >= 75 ? 'Eligible for exams' : 'Below 75% threshold - Attend more classes!'}
             </p>
           </div>
-          
+
           <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium text-muted-foreground">Classes Attended</h3>
@@ -93,7 +99,7 @@ export default function StudentHome() {
             <p className="text-3xl font-bold text-slate-900">{presentCount}</p>
             <p className="text-xs text-muted-foreground mt-1">This semester</p>
           </div>
-          
+
           <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium text-muted-foreground">Total Sessions</h3>
@@ -102,6 +108,64 @@ export default function StudentHome() {
             <p className="text-3xl font-bold text-slate-900">{totalClasses}</p>
             <p className="text-xs text-muted-foreground mt-1">Across all courses</p>
           </div>
+        </div>
+
+
+
+        {/* Course Performance Section */}
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-slate-100">
+            <h3 className="font-serif font-bold text-lg">Course Performance</h3>
+          </div>
+
+          {loadingStats ? (
+            <div className="flex items-center justify-center p-12">
+              <Loader2 className="w-8 h-8 animate-spin text-[#1a1f6c]" />
+            </div>
+          ) : courseStats.length === 0 ? (
+            <div className="p-12 text-center">
+              <p className="text-muted-foreground">No attendance data available yet.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {courseStats.map((stat: any) => (
+                <div key={stat.courseId} className="p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h4 className="font-bold text-slate-900">{stat.courseCode}</h4>
+                      <p className="text-sm text-muted-foreground">{stat.courseTitle}</p>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-xs font-medium ${stat.percentage >= 75 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                      {stat.percentage >= 75 ? 'Good Standing' : 'At Risk'}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 mt-4">
+                    <div className="flex-1">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium text-slate-700">{stat.percentage}% Attendance</span>
+                        <span className="text-muted-foreground">
+                          {stat.attendedSessions} / {stat.totalSessions} Classes
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${stat.percentage >= 75 ? 'bg-green-500' : 'bg-red-500'
+                            }`}
+                          style={{ width: `${stat.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="text-right min-w-[80px]">
+                      <p className="text-xs text-muted-foreground">Missed</p>
+                      <p className="font-bold text-slate-900">{stat.totalSessions - stat.attendedSessions}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
@@ -113,7 +177,7 @@ export default function StudentHome() {
               </span>
             </Link>
           </div>
-          
+
           {loadingCourses ? (
             <div className="flex items-center justify-center p-12">
               <Loader2 className="w-8 h-8 animate-spin text-[#1a1f6c]" />
@@ -135,7 +199,7 @@ export default function StudentHome() {
                       <p className="text-xs text-muted-foreground">{course.department || "General"}</p>
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setLocation(`/student/attendance/${encodeURIComponent(course.code)}`)}
                     className="px-4 py-2 bg-[#1a1f6c]/10 text-[#1a1f6c] text-sm font-medium rounded-lg hover:bg-[#1a1f6c]/20 transition-colors"
                   >
@@ -147,6 +211,6 @@ export default function StudentHome() {
           )}
         </div>
       </div>
-    </Layout>
+    </Layout >
   );
 }
