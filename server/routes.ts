@@ -664,14 +664,22 @@ export async function registerRoutes(
     try {
       const existingAdmin = await storage.getUserByEmail("admin@unilorin.edu.ng");
       if (existingAdmin) {
-        // Ensure it's active if it exists
-        if (!existingAdmin.isActive) {
-          await storage.toggleUserStatus(existingAdmin.id, true);
-        }
+        // Force update to ensure correct role and active status
+        const { data, error } = await storage.supabase
+          .from('users')
+          .update({
+            is_active: true,
+            role: 'admin',
+            staff_id: 'ADMIN001' // Ensure staffId is set
+          })
+          .eq('id', existingAdmin.id)
+          .select()
+          .single();
+
         return res.json({
-          message: "Admin already exists (Activated)",
+          message: "Admin account updated and activated",
           email: "admin@unilorin.edu.ng",
-          staffId: existingAdmin.staffId, // Return Staff ID
+          staffId: "ADMIN001",
           password: "admin123"
         });
       }
@@ -690,7 +698,7 @@ export async function registerRoutes(
       res.json({
         message: "Admin created",
         email: adminUser.email,
-        staffId: adminUser.staffId, // Return Staff ID
+        staffId: adminUser.staffId,
         password: "admin123"
       });
     } catch (error) {
