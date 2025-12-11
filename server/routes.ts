@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
-import { insertUserSchema, insertCourseSchema, insertSessionSchema, insertAttendanceRecordSchema, insertSemesterSchema, UNILORIN_DEPARTMENTS } from "@shared/schema";
+import { insertUserSchema, insertCourseSchema, insertSessionSchema, insertAttendanceRecordSchema, insertSemesterSchema, insertDepartmentSchema, UNILORIN_DEPARTMENTS } from "@shared/schema";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { WebSocketServer, WebSocket } from "ws";
@@ -99,8 +99,35 @@ export async function registerRoutes(
     next();
   };
 
+  // Seeding Departments on Startup
+  const currentDepts = await storage.getDepartments();
+  if (currentDepts.length === 0) {
+    console.log("Seeding departments...");
+    for (const dept of UNILORIN_DEPARTMENTS) {
+      await storage.createDepartment(dept);
+    }
+  }
+
   app.get("/api/departments", async (_req: Request, res: Response) => {
-    res.json({ departments: UNILORIN_DEPARTMENTS });
+    try {
+      const departments = await storage.getDepartments();
+      res.json({ departments });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/departments", requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const validatedData = insertDepartmentSchema.parse(req.body);
+      const department = await storage.createDepartment(validatedData);
+      res.json({ department });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
   });
 
   app.post("/api/auth/register", async (req: Request, res: Response) => {
@@ -235,8 +262,14 @@ export async function registerRoutes(
       if (user.role === "lecturer") {
         courses = await storage.getCoursesByLecturer(user.id);
       } else {
-        // For students, only return courses with active sessions
-        courses = await storage.getCoursesWithActiveSessions();
+        // For students, filter by their department and active sessions
+        // This ensures "Zoology" students only see "Zoology" courses
+        if (user.department) {
+          courses = await storage.getCoursesByDepartment(user.department);
+          // Optional: Filter further for active sessions if desired, but user asked for "Course filtering" primarily
+        } else {
+          courses = await storage.getCoursesWithActiveSessions();
+        }
       }
 
       res.json({ courses });
@@ -445,14 +478,36 @@ export async function registerRoutes(
   app.post("/api/attendance", requireAuth, async (req: AuthRequest, res: Response) => {
     try {
       const user = await storage.getUserById(req.session.userId!);
-      if (!user || user.role !== "student") {
-        return res.status(403).json({ error: "Only students can mark attendance" });
+      // Allow Student OR Lecturer (for manual marking)
+      if (!user || (user.role !== "student" && user.role !== "lecturer" && user.role !== "admin")) {
+        return res.status(403).json({ error: "Unauthorized" });
       }
 
-      const { sessionId, latitude, longitude, deviceId } = req.body;
+      // If Lecturer/Admin marks attendance, we bypass Geofence/Device checks (Manual override)
+      const isManualOverride = user.role === "lecturer" || user.role === "admin";
 
-      if (!sessionId || !latitude || !longitude || !deviceId) {
-        return res.status(400).json({ error: "Missing required fields" });
+      let { sessionId, latitude, longitude, deviceId, studentId } = req.body;
+      let targetStudentId = user.id;
+
+      // Manual Mode Logic
+      if (isManualOverride) {
+        if (!studentId) return res.status(400).json({ error: "Student ID (matric) is required for manual attendance" });
+
+        // Find student by matric/id
+        let targetStudent = await storage.getUserById(studentId); // Try ID first
+        if (!targetStudent) targetStudent = await storage.getUserByMatric(studentId); // Try Matric
+
+        if (!targetStudent) return res.status(404).json({ error: "Student not found" });
+        targetStudentId = targetStudent.id;
+
+        // Mock data for manual entry
+        latitude = latitude || "0.0";
+        longitude = longitude || "0.0";
+        deviceId = deviceId || "manual_override_by_lecturer";
+      } else {
+        if (!sessionId || !latitude || !longitude || !deviceId) {
+          return res.status(400).json({ error: "Missing required fields" });
+        }
       }
 
       const session = await storage.getSessionById(sessionId);
@@ -464,69 +519,73 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Session is not active" });
       }
 
-      // Check for expiry
+      // Check for expiry (Manual override can ignore expiry if desired? Let's enforce it for now)
       if (session.expiresAt && new Date() > session.expiresAt) {
+        // Maybe allow override? User didn't specify. Enforce for now.
         await storage.endSession(session.id);
         return res.status(400).json({ error: "Session has expired" });
       }
 
-      const alreadyMarked = await storage.checkAttendanceExists(sessionId, user.id);
+      const alreadyMarked = await storage.checkAttendanceExists(sessionId, targetStudentId);
       if (alreadyMarked) {
         return res.status(400).json({ error: "Attendance already marked for this session" });
       }
 
-      const distance = calculateDistance(
-        parseFloat(latitude),
-        parseFloat(longitude),
-        parseFloat(session.latitude),
-        parseFloat(session.longitude)
-      );
+      if (!isManualOverride) {
+        const distance = calculateDistance(
+          parseFloat(latitude),
+          parseFloat(longitude),
+          parseFloat(session.latitude),
+          parseFloat(session.longitude)
+        );
 
-      if (distance > (session.geofenceRadius || 100)) {
-        return res.status(400).json({
-          error: "You are outside the classroom geofence",
-          distance: Math.round(distance)
-        });
-      }
+        if (distance > (session.geofenceRadius || 100)) {
+          return res.status(400).json({
+            error: "You are outside the classroom geofence",
+            distance: Math.round(distance)
+          });
+        }
 
-      const existingDevice = await storage.getDeviceByStudentId(user.id);
-      if (existingDevice && existingDevice.deviceId !== deviceId) {
-        return res.status(400).json({
-          error: "Device mismatch detected. Please use your registered device.",
-          status: "suspicious"
-        });
-      }
+        const existingDevice = await storage.getDeviceByStudentId(targetStudentId);
+        if (existingDevice && existingDevice.deviceId !== deviceId) {
+          return res.status(400).json({
+            error: "Device mismatch detected. Please use your registered device.",
+            status: "suspicious"
+          });
+        }
 
-      if (!existingDevice) {
-        await storage.registerDevice({
-          studentId: user.id,
-          deviceId,
-          deviceName: req.headers["user-agent"] || "Unknown",
-          userAgent: req.headers["user-agent"] || "",
-          isActive: true,
-        });
-      } else {
-        await storage.updateDeviceLastUsed(deviceId);
+        if (!existingDevice) {
+          await storage.registerDevice({
+            studentId: targetStudentId,
+            deviceId,
+            deviceName: req.headers["user-agent"] || "Unknown",
+            userAgent: req.headers["user-agent"] || "",
+            isActive: true,
+          });
+        } else {
+          await storage.updateDeviceLastUsed(deviceId);
+        }
       }
 
       const record = await storage.markAttendance({
         sessionId,
-        studentId: user.id,
+        studentId: targetStudentId,
         latitude,
         longitude,
-        deviceId,
+        deviceId: isManualOverride ? "manual_entry" : deviceId,
         ipAddress: req.ip || "",
         userAgent: req.headers["user-agent"] || "",
-        status: "verified",
+        status: isManualOverride ? "manual" : "verified",
       });
 
       const clients = sessionClients.get(sessionId);
       if (clients) {
+        const targetUser = await storage.getUserById(targetStudentId);
         const message = JSON.stringify({
           type: "new_attendance",
           data: {
             ...record,
-            student: { ...user, password: undefined },
+            student: { ...targetUser, password: undefined },
           },
         });
         clients.forEach((client) => {

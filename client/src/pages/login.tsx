@@ -18,14 +18,25 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [departments, setDepartments] = useState<any[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isBiometricAvailable, setIsBiometricAvailable] = useState(false);
 
-  // Initialize Biometrics on Mount
+  // Initialize Biometrics & Departments on Mount
   useEffect(() => {
     checkBiometricAvailability();
+    fetchDepartments();
   }, []);
+
+  const fetchDepartments = async () => {
+    try {
+      const data = await api.departments.getAll();
+      setDepartments(data.departments);
+    } catch (error) {
+      console.error("Failed to fetch departments", error);
+    }
+  };
 
   const checkBiometricAvailability = async () => {
     if (!Capacitor.isNativePlatform()) return;
@@ -245,23 +256,11 @@ export default function LoginPage() {
                     className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-[#1a1f6c] focus:bg-white focus:ring-4 focus:ring-[#1a1f6c]/10 outline-none transition-all duration-300 text-slate-900 font-medium appearance-none"
                   >
                     <option value="">Select Department</option>
-                    <option value="Computer Science">Computer Science</option>
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="Physics">Physics</option>
-                    <option value="Chemistry">Chemistry</option>
-                    <option value="Biochemistry">Biochemistry</option>
-                    <option value="Electrical Engineering">Electrical Engineering</option>
-                    <option value="Civil Engineering">Civil Engineering</option>
-                    <option value="Mechanical Engineering">Mechanical Engineering</option>
-                    <option value="Chemical Engineering">Chemical Engineering</option>
-                    <option value="Computer Engineering">Computer Engineering</option>
-                    <option value="Accounting">Accounting</option>
-                    <option value="Business Administration">Business Administration</option>
-                    <option value="Economics">Economics</option>
-                    <option value="Law">Law</option>
-                    <option value="Medicine">Medicine</option>
-                    <option value="Pharmacy">Pharmacy</option>
-                    <option value="Education">Education</option>
+                    {departments.map((dept) => (
+                      <option key={dept.code} value={dept.code}>
+                        {dept.name}
+                      </option>
+                    ))}
                   </select>
                 </motion.div>
               </>

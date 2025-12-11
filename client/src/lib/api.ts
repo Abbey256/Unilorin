@@ -121,6 +121,15 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ isActive }),
       }),
+    // Departments
+    createDepartment: (data: any) =>
+      fetchApi("/departments", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+  },
+  departments: {
+    getAll: () => fetchApi("/departments"),
   },
 };
 

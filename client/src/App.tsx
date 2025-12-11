@@ -17,6 +17,7 @@ import StudentHistory from "@/pages/student/history";
 import AdminHome from "@/pages/admin/home";
 import AdminUsers from "@/pages/admin/users";
 import AdminCourses from "@/pages/admin/courses";
+import AdminDepartments from "@/pages/admin/departments";
 import AdminSettings from "@/pages/admin/settings";
 import { MobileDeviceManager } from "@/lib/api";
 
@@ -46,6 +47,7 @@ function Router() {
       <Route path="/admin/dashboard" component={AdminHome} />
       <Route path="/admin/users" component={AdminUsers} />
       <Route path="/admin/courses" component={AdminCourses} />
+      <Route path="/admin/departments" component={AdminDepartments} />
       <Route path="/admin/settings" component={AdminSettings} />
 
       <Route component={NotFound} />
