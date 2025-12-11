@@ -29,16 +29,10 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
       // Received non-JSON response (likely HTML error page or 404)
       const text = await response.text();
       console.error("API Error: Received non-JSON response", text.substring(0, 500));
-      if (Capacitor.isNativePlatform()) {
-        alert(`API Error: Endpoint ${endpoint} returned ${response.status} (${response.statusText}) but not JSON. \nURL: ${url}`);
-      }
       throw new Error(`Server returned ${response.status} ${response.statusText} (Not JSON)`);
     }
   } catch (error: any) {
     console.error("Fetch API Error:", error);
-    if (Capacitor.isNativePlatform() && !error.message?.includes("Server returned")) {
-      alert(`Network Error: ${error.message}\nTarget: ${url}`);
-    }
     throw error;
   }
 }
