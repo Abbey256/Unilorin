@@ -31,20 +31,24 @@ export default function LoginPage() {
     if (!Capacitor.isNativePlatform()) return;
     try {
       const result = await NativeBiometric.isAvailable();
+      // Debug log for users
+      console.log("Biometric Result:", result);
+
       if (result.isAvailable) {
         setIsBiometricAvailable(true);
         // Check for saved credentials
         const { value: savedAuth } = await Preferences.get({ key: 'auth_credentials' });
         if (savedAuth) {
           const creds = JSON.parse(savedAuth);
-          // Prompt immediately if desired, or show a button.
-          // Let's show a button or prompt automatically? 
-          // Better to prompt automatically for convenience.
           promptBiometricLogin(creds);
         }
+      } else {
+        // Log failure reason if possible
+        toast({ title: "Biometric Info", description: `Not available: ${result.biometryType || 'Unknown'}`, duration: 2000 });
       }
-    } catch (error) {
-      console.log("Biometric not available", error);
+    } catch (error: any) {
+      console.log("Biometric Check Failed", error);
+      toast({ title: "Biometric Error", description: error.message || "Plugin failure", variant: "destructive" });
     }
   };
 
@@ -202,8 +206,8 @@ export default function LoginPage() {
           <form onSubmit={isRegisterMode ? handleRegister : handleLogin} className="px-8 pb-8 space-y-4">
             {isRegisterMode && (
               <>
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <motion.div initial={{ x: -10, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">
                     Full Name
                   </label>
                   <input
@@ -212,12 +216,12 @@ export default function LoginPage() {
                     value={registerData.name}
                     onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
                     placeholder="John Doe"
-                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none transition-all text-slate-900 placeholder:text-slate-300"
+                    className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-[#1a1f6c] focus:bg-white focus:ring-4 focus:ring-[#1a1f6c]/10 outline-none transition-all duration-300 text-slate-900 placeholder:text-slate-400 font-medium"
                   />
-                </div>
+                </motion.div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <motion.div initial={{ x: -10, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.15 }} className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">
                     Email Address
                   </label>
                   <input
@@ -226,19 +230,19 @@ export default function LoginPage() {
                     value={registerData.email}
                     onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
                     placeholder="john.doe@unilorin.edu.ng"
-                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none transition-all text-slate-900 placeholder:text-slate-300"
+                    className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-[#1a1f6c] focus:bg-white focus:ring-4 focus:ring-[#1a1f6c]/10 outline-none transition-all duration-300 text-slate-900 placeholder:text-slate-400 font-medium"
                   />
-                </div>
+                </motion.div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <motion.div initial={{ x: -10, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">
                     Department
                   </label>
                   <select
                     required
                     value={registerData.department}
                     onChange={(e) => setRegisterData({ ...registerData, department: e.target.value })}
-                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none transition-all text-slate-900"
+                    className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-[#1a1f6c] focus:bg-white focus:ring-4 focus:ring-[#1a1f6c]/10 outline-none transition-all duration-300 text-slate-900 font-medium appearance-none"
                   >
                     <option value="">Select Department</option>
                     <option value="Computer Science">Computer Science</option>
@@ -259,12 +263,12 @@ export default function LoginPage() {
                     <option value="Pharmacy">Pharmacy</option>
                     <option value="Education">Education</option>
                   </select>
-                </div>
+                </motion.div>
               </>
             )}
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <motion.div initial={false} animate={{ y: 0 }} className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">
                 {role === "student" ? "Matric Number" : "Staff ID"}
               </label>
               <input
@@ -273,16 +277,16 @@ export default function LoginPage() {
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder={role === "student" ? "18/52HA019" : "UNI/L/001"}
-                className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none transition-all text-slate-900 placeholder:text-slate-300"
+                className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-[#1a1f6c] focus:bg-white focus:ring-4 focus:ring-[#1a1f6c]/10 outline-none transition-all duration-300 text-slate-900 placeholder:text-slate-400 font-medium"
                 data-testid="input-identifier"
               />
-            </div>
+            </motion.div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <motion.div initial={false} animate={{ y: 0 }} className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-1">
                 Password
               </label>
-              <div className="relative">
+              <div className="relative group">
                 <input
                   type={showPassword ? "text" : "password"}
                   required
@@ -290,29 +294,37 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none transition-all text-slate-900 placeholder:text-slate-300 pr-12"
+                  className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-[#1a1f6c] focus:bg-white focus:ring-4 focus:ring-[#1a1f6c]/10 outline-none transition-all duration-300 text-slate-900 placeholder:text-slate-400 font-medium pr-12"
                   data-testid="input-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1a1f6c] transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-            </div>
+            </motion.div>
 
             <div className="pt-2">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-[#1a1f6c] hover:bg-[#141852] text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
+                className="w-full bg-gradient-to-r from-[#1a1f6c] to-[#2a3090] hover:shadow-lg hover:shadow-[#1a1f6c]/30 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                 data-testid="button-login"
               >
-                {isLoading ? "Please wait..." : (isRegisterMode ? "Create Account" : "Sign In")}
-                {!isLoading && <ArrowRight className="w-4 h-4" />}
-              </button>
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    {isRegisterMode ? "Create Account" : "Sign In"}
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </motion.button>
             </div>
 
             {/* Biometric Trigger (if available but not auto-triggered) */}

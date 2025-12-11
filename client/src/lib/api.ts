@@ -125,30 +125,37 @@ export const api = {
 };
 
 import { Preferences } from "@capacitor/preferences";
+import { Device } from "@capacitor/device";
 
 export const MobileDeviceManager = {
   async initialize() {
-    // Sync Preferences <-> LocalStorage
-    // This allows sync access (via localStorage) but adds persistence (via Preferences)
+    // 1. Try to get hardware ID (The most persistent)
+    try {
+      const info = await Device.getId();
+      if (info.uuid || info.identifier) {
+        const hardwareId = info.uuid || info.identifier;
+        localStorage.setItem("deviceId", hardwareId);
+        await Preferences.set({ key: "device_id", value: hardwareId });
+        console.log("Device Manager: Hardware ID locked", hardwareId);
+        return;
+      }
+    } catch (e) {
+      console.error("Device Manager: Failed to get Hardware ID", e);
+    }
+
+    // 2. Fallback to Preferences/LocalStorage logic (if Hardware ID fails)
     try {
       const { value: prefId } = await Preferences.get({ key: "device_id" });
       let localId = localStorage.getItem("deviceId");
 
       if (prefId && !localId) {
-        // Restore from Prefs
         localStorage.setItem("deviceId", prefId);
-        localId = prefId;
       } else if (!prefId && localId) {
-        // Save to Prefs
         await Preferences.set({ key: "device_id", value: localId });
       } else if (!prefId && !localId) {
-        // Generate new
         const newId = `device-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         localStorage.setItem("deviceId", newId);
         await Preferences.set({ key: "device_id", value: newId });
-      } else if (prefId && localId && prefId !== localId) {
-        // Conflict: Trust Preferences (Harder to wipe)
-        localStorage.setItem("deviceId", prefId);
       }
     } catch (e) {
       console.error("Device Manager Init Failed", e);
@@ -156,13 +163,11 @@ export const MobileDeviceManager = {
   },
 
   getDeviceId(): string {
-    // Fallback to purely random if not init yet (should be init in App.tsx)
+    // Return what we have in storage (which should be Hardware ID if init ran)
     let id = localStorage.getItem("deviceId");
     if (!id) {
       id = `device-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       localStorage.setItem("deviceId", id);
-      // We try to async save it for next time
-      Preferences.set({ key: "device_id", value: id }).catch(console.error);
     }
     return id;
   }
