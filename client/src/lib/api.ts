@@ -181,42 +181,77 @@ import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
 
 export async function getCurrentPosition(): Promise<GeolocationPosition> {
-  // If running on a native device (Android/iOS), use the Native Geolocation Plugin
+  // If running on a native device (Android/iOS), use the Native Geolocation Plugin with "Smart Sampling"
   if (Capacitor.isNativePlatform()) {
-    try {
-      const permissionStatus = await Geolocation.checkPermissions();
+    return new Promise(async (resolve, reject) => {
+      let watchId: string | null = null;
+      const readings: any[] = [];
+      let resolved = false;
 
-      if (permissionStatus.location !== 'granted') {
-        const requestStatus = await Geolocation.requestPermissions();
-        if (requestStatus.location !== 'granted') {
-          throw new Error("Location permission denied. Please enable it in app settings.");
+      try {
+        const permissionStatus = await Geolocation.checkPermissions();
+        if (permissionStatus.location !== 'granted') {
+          const requestStatus = await Geolocation.requestPermissions();
+          if (requestStatus.location !== 'granted') {
+            throw new Error("Location permission denied. Please enable it in app settings.");
+          }
         }
+
+        // HEURISTIC: Wait up to 6 seconds to find the best signal
+        const MAX_WAIT_TIME = 6000;
+        const TARGET_ACCURACY = 15; // meters
+
+        // Start watching position (continuous stream)
+        watchId = await Geolocation.watchPosition(
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          },
+          (position, err) => {
+            if (err) {
+              console.warn("GPS Watch Error:", err);
+              return;
+            }
+            if (position) {
+              console.log(`GPS Reading: Lat: ${position.coords.latitude}, Acc: ${position.coords.accuracy}m`);
+              readings.push(position);
+
+              // If we hit our target accuracy, return immediately (Fast Path)
+              if (position.coords.accuracy <= TARGET_ACCURACY && !resolved) {
+                resolved = true;
+                if (watchId) Geolocation.clearWatch({ id: watchId });
+                resolve(formatPosition(position));
+              }
+            }
+          }
+        );
+
+        // Set a timeout to stop watching and pick the best reading
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            if (watchId) Geolocation.clearWatch({ id: watchId });
+
+            if (readings.length === 0) {
+              // Failed to get ANY reading in 6 seconds
+              reject(new Error("Unable to acquire a GPS signal. Please move to an open area."));
+            } else {
+              // Sort by accuracy (ascending -> smaller number is better)
+              readings.sort((a, b) => a.coords.accuracy - b.coords.accuracy);
+              const bestReading = readings[0];
+              console.log(`Selected Best Reading: Acc ${bestReading.coords.accuracy}m`);
+              resolve(formatPosition(bestReading));
+            }
+          }
+        }, MAX_WAIT_TIME);
+
+      } catch (error: any) {
+        console.error("Native GPS Error:", error);
+        if (watchId && !resolved) Geolocation.clearWatch({ id: watchId });
+        reject(new Error(error.message || "Failed to get native location."));
       }
-
-      const position = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      });
-
-      // Convert Capacitor position to standard GeolocationPosition format
-      return {
-        coords: {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          altitude: position.coords.altitude,
-          accuracy: position.coords.accuracy,
-          altitudeAccuracy: position.coords.altitudeAccuracy,
-          heading: position.coords.heading,
-          speed: position.coords.speed,
-        },
-        timestamp: position.timestamp
-      } as GeolocationPosition;
-
-    } catch (error: any) {
-      console.error("Native GPS Error:", error);
-      throw new Error(error.message || "Failed to get native location.");
-    }
+    });
   }
 
   // Fallback to Web Geolocation API for browser
@@ -226,48 +261,43 @@ export async function getCurrentPosition(): Promise<GeolocationPosition> {
       return;
     }
 
-    const options = {
-      enableHighAccuracy: true,
-      timeout: 15000, // 15 seconds
-      maximumAge: 0,
-    };
-
     navigator.geolocation.getCurrentPosition(
       resolve,
       (error) => {
         let errorMessage = "Unknown location error";
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = "Location permission denied. Please enable location services.";
+            errorMessage = "Location permission denied.";
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage = "Location information is unavailable. Please check your GPS signal.";
+            errorMessage = "Location unavailable. Check GPS.";
             break;
           case error.TIMEOUT:
-            errorMessage = "Location request timed out. Please move to an open area and try again.";
+            errorMessage = "Location request timed out.";
             break;
         }
-
-        // Retry logic for timeout or position unavailable
-        if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
-          console.log("Retrying location with relaxed settings...");
-          navigator.geolocation.getCurrentPosition(
-            resolve,
-            (retryError) => {
-              // If it fails again, use the specific error message
-              reject(new Error(errorMessage));
-            },
-            {
-              enableHighAccuracy: false, // Try with lower accuracy (WiFi/Cell)
-              timeout: 20000,
-              maximumAge: 10000,
-            }
-          );
-        } else {
-          reject(new Error(errorMessage));
-        }
+        reject(new Error(errorMessage));
       },
-      options
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      }
     );
   });
+}
+
+function formatPosition(position: any): GeolocationPosition {
+  return {
+    coords: {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      altitude: position.coords.altitude,
+      accuracy: position.coords.accuracy,
+      altitudeAccuracy: position.coords.altitudeAccuracy,
+      heading: position.coords.heading,
+      speed: position.coords.speed,
+    },
+    timestamp: position.timestamp
+  } as GeolocationPosition;
 }
