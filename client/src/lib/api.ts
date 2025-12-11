@@ -1,5 +1,13 @@
+// Define the production URL for the native app
+// When running in browser, use relative path to leverage proxy/same-origin
+const API_BASE_URL = Capacitor.isNativePlatform()
+  ? "https://unilorin.onrender.com"
+  : "";
+
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
-  const response = await fetch(`/api${endpoint}`, {
+  const url = `${API_BASE_URL}/api${endpoint}`;
+
+  const response = await fetch(url, {
     ...options,
     headers: {
       "Content-Type": "application/json",

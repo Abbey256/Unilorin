@@ -9,7 +9,7 @@ import { toast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const [role, setRole] = useState<"student" | "lecturer" | "admin">("student");
+  const [role, setRole] = useState<"student" | "lecturer">("student");
   const [isLoading, setIsLoading] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -291,15 +291,7 @@ export default function LoginPage() {
               </button>
             </div>
 
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={handleSetupAdmin}
-                className="text-xs text-slate-400 hover:text-[#1a1f6c] hover:underline"
-              >
-                Initialize Admin Account
-              </button>
-            </div>
+
           </form>
         </div>
 
