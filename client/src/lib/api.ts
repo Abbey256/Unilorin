@@ -133,6 +133,25 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    upload: (type: "departments" | "faculties" | "courses", file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      // fetchApi wrapper usually handles JSON headers. 
+      // For FormData, we must NOT set Content-Type to application/json.
+      // We might need to bypass the standard fetchApi wrapper or modify it.
+      // Let's modify fetchApi to handle FormData or just call fetch directly here.
+      // Direct fetch is safer to avoid breaking existing logic.
+      return fetch(`/api/admin/upload/${type}`, {
+        method: "POST",
+        body: formData,
+      }).then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Upload failed");
+        }
+        return res.json();
+      });
+    }
   },
   departments: {
     getAll: () => fetchApi("/departments"),

@@ -2,11 +2,18 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
+import { supabase } from "./supabase"; // Importing directly to fix access issue
 import { insertUserSchema, insertCourseSchema, insertSessionSchema, insertAttendanceRecordSchema, insertSemesterSchema, insertDepartmentSchema, insertFacultySchema, UNILORIN_DEPARTMENTS, UNILORIN_FACULTIES } from "@shared/schema";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { WebSocketServer, WebSocket } from "ws";
 import MemoryStore from "memorystore";
+import multer from "multer";
+import * as xlsx from "xlsx";
+import fs from "fs";
+
+// Configure Multer for Memory Storage (good for small/medium files on serverless)
+const upload = multer({ storage: multer.memoryStorage() });
 
 const MemoryStoreSession = MemoryStore(session);
 
@@ -742,7 +749,7 @@ export async function registerRoutes(
       const existingAdmin = await storage.getUserByEmail("admin@unilorin.edu.ng");
       if (existingAdmin) {
         // Force update to ensure correct role and active status
-        const { data, error } = await storage.supabase
+        const { data, error } = await supabase
           .from('users')
           .update({
             is_active: true,

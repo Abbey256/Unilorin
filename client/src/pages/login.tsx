@@ -71,9 +71,8 @@ export default function LoginPage() {
         subtitle: "Confirm your identity",
       });
 
-      if (verified) {
-        await performLogin(creds.identifier, creds.password, creds.role, false); // false = don't save again
-      }
+      // Biometric verified if we reach here
+      await performLogin(creds.identifier, creds.password, creds.role, false); // false = don't save again
     } catch (error) {
       console.log("Biometric cancelled/failed", error);
     }
