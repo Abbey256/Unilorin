@@ -72,6 +72,13 @@ export const devices = pgTable("devices", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const faculties = pgTable("faculties", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  code: text("code").unique(), // e.g. "CIS"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const semesters = pgTable("semesters", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(), // e.g. "2024/2025 Rain"
@@ -79,6 +86,11 @@ export const semesters = pgTable("semesters", {
   endDate: timestamp("end_date").notNull(),
   isActive: boolean("is_active").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertFacultySchema = createInsertSchema(faculties).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertDepartmentSchema = createInsertSchema(departments).omit({
@@ -137,6 +149,9 @@ export type Device = typeof devices.$inferSelect;
 
 export type InsertSemester = z.infer<typeof insertSemesterSchema>;
 export type Semester = typeof semesters.$inferSelect;
+
+export type InsertFaculty = z.infer<typeof insertFacultySchema>;
+export type Faculty = typeof faculties.$inferSelect;
 
 export const UNILORIN_DEPARTMENTS = [
   { code: "CSC", name: "Computer Science", faculty: "Communication and Information Sciences" },

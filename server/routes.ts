@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
-import { insertUserSchema, insertCourseSchema, insertSessionSchema, insertAttendanceRecordSchema, insertSemesterSchema, insertDepartmentSchema, UNILORIN_DEPARTMENTS } from "@shared/schema";
+import { insertUserSchema, insertCourseSchema, insertSessionSchema, insertAttendanceRecordSchema, insertSemesterSchema, insertDepartmentSchema, insertFacultySchema, UNILORIN_DEPARTMENTS, UNILORIN_FACULTIES } from "@shared/schema";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { WebSocketServer, WebSocket } from "ws";
@@ -99,6 +99,15 @@ export async function registerRoutes(
     next();
   };
 
+  // Seeding Faculties on Startup
+  const currentFaculties = await storage.getFaculties();
+  if (currentFaculties.length === 0) {
+    console.log("Seeding faculties...");
+    for (const facultyName of UNILORIN_FACULTIES) {
+      await storage.createFaculty({ name: facultyName, code: facultyName.substring(0, 3).toUpperCase() });
+    }
+  }
+
   // Seeding Departments on Startup
   const currentDepts = await storage.getDepartments();
   if (currentDepts.length === 0) {
@@ -122,6 +131,28 @@ export async function registerRoutes(
       const validatedData = insertDepartmentSchema.parse(req.body);
       const department = await storage.createDepartment(validatedData);
       res.json({ department });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/faculties", async (_req: Request, res: Response) => {
+    try {
+      const faculties = await storage.getFaculties();
+      res.json({ faculties });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/faculties", requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const validatedData = insertFacultySchema.parse(req.body);
+      const faculty = await storage.createFaculty(validatedData);
+      res.json({ faculty });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: fromZodError(error).message });

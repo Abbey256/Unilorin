@@ -127,9 +127,18 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    // Faculties
+    createFaculty: (data: any) =>
+      fetchApi("/faculties", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
   },
   departments: {
     getAll: () => fetchApi("/departments"),
+  },
+  faculties: {
+    getAll: () => fetchApi("/faculties"),
   },
 };
 
@@ -141,8 +150,9 @@ export const MobileDeviceManager = {
     // 1. Try to get hardware ID (The most persistent)
     try {
       const info = await Device.getId();
-      if (info.uuid || info.identifier) {
-        const hardwareId = info.uuid || info.identifier;
+      // 'identifier' is the standard property for unique ID in Capacitor Device plugin
+      if (info.identifier) {
+        const hardwareId = info.identifier;
         localStorage.setItem("deviceId", hardwareId);
         await Preferences.set({ key: "device_id", value: hardwareId });
         console.log("Device Manager: Hardware ID locked", hardwareId);

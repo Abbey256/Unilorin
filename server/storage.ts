@@ -15,6 +15,8 @@ import type {
   InsertDepartment,
   Semester,
   InsertSemester,
+  Faculty,
+  InsertFaculty,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -24,6 +26,9 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   validatePassword(user: User, password: string): Promise<boolean>;
+
+  getFaculties(): Promise<Faculty[]>;
+  createFaculty(faculty: InsertFaculty): Promise<Faculty>;
 
   getDepartments(): Promise<Department[]>;
   createDepartment(department: InsertDepartment): Promise<Department>;
@@ -149,6 +154,30 @@ export class SupabaseStorage implements IStorage {
       return bcrypt.compare(password, user.password);
     }
     return user.password === password;
+  }
+
+  async getFaculties(): Promise<Faculty[]> {
+    const { data, error } = await supabase
+      .from('faculties')
+      .select('*')
+      .order('name');
+
+    if (error) return [];
+    return data.map(this.mapFaculty);
+  }
+
+  async createFaculty(faculty: InsertFaculty): Promise<Faculty> {
+    const { data, error } = await supabase
+      .from('faculties')
+      .insert({
+        name: faculty.name,
+        code: faculty.code,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return this.mapFaculty(data);
   }
 
   async getDepartments(): Promise<Department[]> {
@@ -433,6 +462,15 @@ export class SupabaseStorage implements IStorage {
       startDate: new Date(data.start_date),
       endDate: new Date(data.end_date),
       isActive: data.is_active,
+      createdAt: new Date(data.created_at),
+    };
+  }
+
+  private mapFaculty(data: any): Faculty {
+    return {
+      id: data.id,
+      name: data.name,
+      code: data.code,
       createdAt: new Date(data.created_at),
     };
   }
