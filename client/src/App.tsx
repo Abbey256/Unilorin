@@ -18,8 +18,13 @@ import AdminHome from "@/pages/admin/home";
 import AdminUsers from "@/pages/admin/users";
 import AdminCourses from "@/pages/admin/courses";
 import AdminSettings from "@/pages/admin/settings";
+import { MobileDeviceManager } from "@/lib/api";
 
 function Router() {
+  useEffect(() => {
+    MobileDeviceManager.initialize();
+  }, []);
+
   return (
     <Switch>
       <Route path="/" component={LoginPage} />

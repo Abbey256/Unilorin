@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowRight, GraduationCap, User, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { ArrowRight, GraduationCap, User, Eye, EyeOff, Fingerprint } from "lucide-react";
 import bgImage from "@assets/generated_images/modern_university_campus_background_for_login_screen.png";
 const logo = "/Unilorinlogo.png";
 import { api } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
+
+// Biometric Imports
+import { NativeBiometric } from "capacitor-native-biometric";
+import { Preferences } from "@capacitor/preferences";
+import { Capacitor } from "@capacitor/core";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -15,27 +20,80 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isBiometricAvailable, setIsBiometricAvailable] = useState(false);
+
+  // Initialize Biometrics on Mount
+  useEffect(() => {
+    checkBiometricAvailability();
+  }, []);
+
+  const checkBiometricAvailability = async () => {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      const result = await NativeBiometric.isAvailable();
+      if (result.isAvailable) {
+        setIsBiometricAvailable(true);
+        // Check for saved credentials
+        const { value: savedAuth } = await Preferences.get({ key: 'auth_credentials' });
+        if (savedAuth) {
+          const creds = JSON.parse(savedAuth);
+          // Prompt immediately if desired, or show a button.
+          // Let's show a button or prompt automatically? 
+          // Better to prompt automatically for convenience.
+          promptBiometricLogin(creds);
+        }
+      }
+    } catch (error) {
+      console.log("Biometric not available", error);
+    }
+  };
+
+  const promptBiometricLogin = async (creds: any) => {
+    try {
+      const verified = await NativeBiometric.verifyIdentity({
+        reason: "Log in with your fingerprint",
+        title: "Welcome Back",
+        subtitle: "Confirm your identity",
+      });
+
+      if (verified) {
+        await performLogin(creds.identifier, creds.password, creds.role, false); // false = don't save again
+      }
+    } catch (error) {
+      console.log("Biometric cancelled/failed", error);
+    }
+  };
+
   const [registerData, setRegisterData] = useState({
     name: "",
     email: "",
     department: "",
   });
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const performLogin = async (id: string, pass: string, r: string, shouldSave: boolean = true) => {
     setIsLoading(true);
-
     try {
-      const response = await api.auth.login(identifier, password, role);
+      const response = await api.auth.login(id, pass, r);
 
       toast({
         title: "Welcome back!",
         description: `Logged in as ${response.user.name}`,
       });
 
-      if (role === "student") {
+      if (shouldSave && isBiometricAvailable) {
+        // Ask to enable biometric
+        const confirm = window.confirm("Enable Fingerprint Login for next time?");
+        if (confirm) {
+          await Preferences.set({
+            key: 'auth_credentials',
+            value: JSON.stringify({ identifier: id, password: pass, role: r })
+          });
+        }
+      }
+
+      if (r === "student") {
         setLocation("/student/dashboard");
-      } else if (role === "lecturer") {
+      } else if (r === "lecturer") {
         setLocation("/lecturer/dashboard");
       } else {
         setLocation("/admin/dashboard");
@@ -49,6 +107,11 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await performLogin(identifier, password, role);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -82,35 +145,6 @@ export default function LoginPage() {
       toast({
         title: "Registration Failed",
         description: error.message || "Please check your details",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSetupAdmin = async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch("/api/setup/admin");
-      const data = await res.json();
-      if (res.ok) {
-        toast({
-          title: "Admin Setup",
-          description: data.message,
-        });
-        if (data.staffId && data.password) {
-          setIdentifier(data.staffId); // Use Staff ID, not Email
-          setPassword(data.password);
-          setRole("admin");
-        }
-      } else {
-        throw new Error(data.error || "Setup failed");
-      }
-    } catch (error: any) {
-      toast({
-        title: "Setup Failed",
-        description: error.message,
         variant: "destructive",
       });
     } finally {
@@ -280,6 +314,24 @@ export default function LoginPage() {
                 {!isLoading && <ArrowRight className="w-4 h-4" />}
               </button>
             </div>
+
+            {/* Biometric Trigger (if available but not auto-triggered) */}
+            {isBiometricAvailable && !isLoading && !isRegisterMode && (
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const { value: savedAuth } = await Preferences.get({ key: 'auth_credentials' });
+                    if (savedAuth) promptBiometricLogin(JSON.parse(savedAuth));
+                    else toast({ title: "No biometric data saved", description: "Login manually first to enable." });
+                  }}
+                  className="flex items-center justify-center gap-2 w-full text-sm text-slate-600 bg-slate-100 py-2 rounded-lg hover:bg-slate-200"
+                >
+                  <Fingerprint className="w-4 h-4" />
+                  Login with Fingerprint
+                </button>
+              </div>
+            )}
 
             <div className="text-center pt-4 space-y-2">
               <button

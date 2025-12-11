@@ -124,13 +124,52 @@ export const api = {
   },
 };
 
-export function getDeviceId(): string {
-  let deviceId = localStorage.getItem("deviceId");
-  if (!deviceId) {
-    deviceId = `device-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem("deviceId", deviceId);
+import { Preferences } from "@capacitor/preferences";
+
+export const MobileDeviceManager = {
+  async initialize() {
+    // Sync Preferences <-> LocalStorage
+    // This allows sync access (via localStorage) but adds persistence (via Preferences)
+    try {
+      const { value: prefId } = await Preferences.get({ key: "device_id" });
+      let localId = localStorage.getItem("deviceId");
+
+      if (prefId && !localId) {
+        // Restore from Prefs
+        localStorage.setItem("deviceId", prefId);
+        localId = prefId;
+      } else if (!prefId && localId) {
+        // Save to Prefs
+        await Preferences.set({ key: "device_id", value: localId });
+      } else if (!prefId && !localId) {
+        // Generate new
+        const newId = `device-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem("deviceId", newId);
+        await Preferences.set({ key: "device_id", value: newId });
+      } else if (prefId && localId && prefId !== localId) {
+        // Conflict: Trust Preferences (Harder to wipe)
+        localStorage.setItem("deviceId", prefId);
+      }
+    } catch (e) {
+      console.error("Device Manager Init Failed", e);
+    }
+  },
+
+  getDeviceId(): string {
+    // Fallback to purely random if not init yet (should be init in App.tsx)
+    let id = localStorage.getItem("deviceId");
+    if (!id) {
+      id = `device-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem("deviceId", id);
+      // We try to async save it for next time
+      Preferences.set({ key: "device_id", value: id }).catch(console.error);
+    }
+    return id;
   }
-  return deviceId;
+};
+
+export function getDeviceId(): string {
+  return MobileDeviceManager.getDeviceId();
 }
 
 import { Capacitor } from "@capacitor/core";
