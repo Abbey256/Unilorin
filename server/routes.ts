@@ -71,11 +71,12 @@ export async function registerRoutes(
       secret: process.env.SESSION_SECRET || "uniattend-secret-key",
       resave: false,
       saveUninitialized: false,
+      proxy: true, // Required for Render/proxies
       cookie: {
         maxAge: 30 * 24 * 60 * 60 * 1000,
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       },
     })
   );
