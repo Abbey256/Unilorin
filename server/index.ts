@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 
 import compression from "compression";
+import cors from "cors";
 
 const app = express();
 const httpServer = createServer(app);
@@ -16,6 +17,16 @@ declare module "http" {
 
 app.set("trust proxy", 1);
 app.use(compression());
+app.use(cors({
+  origin: [
+    "http://localhost:5000",
+    "http://localhost:5173",
+    "capacitor://localhost",
+    "http://localhost",
+    "https://unilorin.onrender.com"
+  ],
+  credentials: true
+}));
 
 app.use(
   express.json({
