@@ -112,7 +112,49 @@ export function getDeviceId(): string {
   return deviceId;
 }
 
-export function getCurrentPosition(): Promise<GeolocationPosition> {
+import { Capacitor } from "@capacitor/core";
+import { Geolocation } from "@capacitor/geolocation";
+
+export async function getCurrentPosition(): Promise<GeolocationPosition> {
+  // If running on a native device (Android/iOS), use the Native Geolocation Plugin
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const permissionStatus = await Geolocation.checkPermissions();
+
+      if (permissionStatus.location !== 'granted') {
+        const requestStatus = await Geolocation.requestPermissions();
+        if (requestStatus.location !== 'granted') {
+          throw new Error("Location permission denied. Please enable it in app settings.");
+        }
+      }
+
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      });
+
+      // Convert Capacitor position to standard GeolocationPosition format
+      return {
+        coords: {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          altitude: position.coords.altitude,
+          accuracy: position.coords.accuracy,
+          altitudeAccuracy: position.coords.altitudeAccuracy,
+          heading: position.coords.heading,
+          speed: position.coords.speed,
+        },
+        timestamp: position.timestamp
+      } as GeolocationPosition;
+
+    } catch (error: any) {
+      console.error("Native GPS Error:", error);
+      throw new Error(error.message || "Failed to get native location.");
+    }
+  }
+
+  // Fallback to Web Geolocation API for browser
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error("Geolocation is not supported by this browser."));

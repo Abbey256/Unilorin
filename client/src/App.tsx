@@ -8,6 +8,7 @@ import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
 import StudentHome from "@/pages/student/home";
 import StudentAttendance from "@/pages/student/attendance";
+import AdminLogin from "@/pages/admin-login";
 import LecturerHome from "@/pages/lecturer/home";
 import LecturerSession from "@/pages/lecturer/session";
 import LecturerSessions from "@/pages/lecturer/sessions";
@@ -34,6 +35,8 @@ function Router() {
       <Route path="/lecturer/session/active" component={LecturerSession} />
       <Route path="/lecturer/courses" component={LecturerCourses} />
 
+      <Route path="/admin/portal" component={AdminLogin} />
+
       {/* Admin Routes */}
       <Route path="/admin/dashboard" component={AdminHome} />
       <Route path="/admin/users" component={AdminUsers} />
@@ -45,7 +48,12 @@ function Router() {
   );
 }
 
+import SplashScreen from "@/components/SplashScreen";
+import { useState } from "react";
+
 function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
   useEffect(() => {
     const handleOnline = async () => {
       const { offlineSync } = await import("@/lib/offline-sync");
@@ -59,7 +67,11 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Router />
+        {showSplash ? (
+          <SplashScreen onComplete={() => setShowSplash(false)} />
+        ) : (
+          <Router />
+        )}
       </TooltipProvider>
     </QueryClientProvider>
   );
