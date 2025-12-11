@@ -18,13 +18,17 @@ declare module "http" {
 app.set("trust proxy", 1);
 app.use(compression());
 app.use(cors({
-  origin: [
-    "http://localhost:5000",
-    "http://localhost:5173",
-    "capacitor://localhost",
-    "http://localhost",
-    "https://unilorin.onrender.com"
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      console.log("CORS: Request with no origin allowed");
+      return callback(null, true);
+    }
+
+    console.log(`CORS: Allowed origin request from ${origin}`);
+    // Allow all origins dynamically
+    callback(null, true);
+  },
   credentials: true
 }));
 
