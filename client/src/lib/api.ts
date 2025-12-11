@@ -1,27 +1,46 @@
 // Define the production URL for the native app
 // When running in browser, use relative path to leverage proxy/same-origin
-const API_BASE_URL = Capacitor.isNativePlatform()
-  ? "https://unilorin.onrender.com"
-  : "";
+// ROBUST FIX: Only use relative path if we are EXPLICITLY on localhost:5000 (Dev)
+// otherwise, assume we are on mobile or production and need the full URL.
+const isLocalDev = window.location.hostname === "localhost" && window.location.port === "5000";
+const API_BASE_URL = isLocalDev ? "" : "https://unilorin.onrender.com";
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}/api${endpoint}`;
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-    credentials: "include",
-  });
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+      credentials: "include",
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error || "Request failed");
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Request failed");
+      }
+      return data;
+    } else {
+      // Received non-JSON response (likely HTML error page or 404)
+      const text = await response.text();
+      console.error("API Error: Received non-JSON response", text.substring(0, 500));
+      if (Capacitor.isNativePlatform()) {
+        alert(`API Error: Endpoint ${endpoint} returned ${response.status} (${response.statusText}) but not JSON. \nURL: ${url}`);
+      }
+      throw new Error(`Server returned ${response.status} ${response.statusText} (Not JSON)`);
+    }
+  } catch (error: any) {
+    console.error("Fetch API Error:", error);
+    if (Capacitor.isNativePlatform() && !error.message?.includes("Server returned")) {
+      alert(`Network Error: ${error.message}\nTarget: ${url}`);
+    }
+    throw error;
   }
-
-  return response.json();
 }
 
 export const api = {
