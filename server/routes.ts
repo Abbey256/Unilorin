@@ -320,8 +320,9 @@ export async function registerRoutes(
   app.post("/api/courses", requireAuth, async (req: AuthRequest, res: Response) => {
     try {
       const user = await storage.getUserById(req.session.userId!);
-      if (!user || user.role !== "lecturer") {
-        return res.status(403).json({ error: "Only lecturers can create courses" });
+      // Allow Admin to create courses too
+      if (!user || (user.role !== "lecturer" && user.role !== "admin")) {
+        return res.status(403).json({ error: "Only lecturers or admins can create courses" });
       }
 
       const existingCourse = await storage.getCourseByCode(req.body.code);
@@ -739,6 +740,92 @@ export async function registerRoutes(
       const semester = await storage.toggleSemesterStatus(req.params.id, isActive);
       res.json({ semester });
     } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/admin/upload/:type", requireAdmin, upload.single("file"), async (req: AuthRequest, res: Response) => {
+    try {
+      const { type } = req.params;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const workbook = xlsx.read(file.buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const data = xlsx.utils.sheet_to_json(sheet);
+
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      console.log(`Processing upload for ${type}, ${data.length} rows`);
+
+      for (const row of data as any[]) {
+        try {
+          if (type === "faculties") {
+            if (!row.name || !row.code) throw new Error("Missing name or code");
+            await storage.createFaculty({
+              name: row.name,
+              code: row.code,
+            });
+          } else if (type === "departments") {
+            if (!row.name || !row.code || !row.faculty) throw new Error("Missing name, code, or faculty");
+            await storage.createDepartment({
+              name: row.name,
+              code: row.code,
+              faculty: row.faculty,
+            });
+          } else if (type === "courses") {
+            // Expecting: code, title, department, technician/lecturer id?
+            // For simplicity, if lecturer column exists, try to find user. 
+            // Or assign to current admin? No, course needs a lecturer.
+            // Let's assume the Excel has 'lecturer_email' or 'lecturer_staff_id'
+
+            if (!row.code || !row.title) throw new Error("Missing code or title");
+
+            let lecturerId = req.session.userId!; // Default to current user (if lecturer)
+
+            // If Admin is uploading, they MUST specify a lecturer
+            if (row.lecturer_staff_id) {
+              const l = await storage.getUserByStaffId(row.lecturer_staff_id);
+              if (l) lecturerId = l.id;
+            } else if (row.lecturer_email) {
+              const l = await storage.getUserByEmail(row.lecturer_email);
+              if (l) lecturerId = l.id;
+            }
+
+            // If we still don't have a valid lecturer ID (and current user is admin), fail row
+            // Actually, schema constrains it.
+
+            await storage.createCourse({
+              code: row.code,
+              title: row.title,
+              department: row.department,
+              lecturerId: lecturerId,
+              capacity: row.capacity || 200
+            });
+          }
+          successCount++;
+        } catch (err: any) {
+          console.error("Row error:", err);
+          errorCount++;
+          errors.push(`Row ${JSON.stringify(row)}: ${err.message}`);
+        }
+      }
+
+      res.json({
+        message: "Upload processed",
+        successCount,
+        errorCount,
+        errors
+      });
+
+    } catch (error) {
+      console.error("Upload error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

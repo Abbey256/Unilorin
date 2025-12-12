@@ -1,3 +1,4 @@
+import Layout from "@/components/Layout";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api";
@@ -134,38 +135,30 @@ export default function AdminDepartmentsPage() {
     );
 
     return (
-        <div className="min-h-screen bg-slate-50">
-            <div className="bg-[#1a1f6c] text-white p-6 pb-24 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                <div className="max-w-7xl mx-auto relative z-10">
-                    <div className="flex items-center gap-4 mb-8">
-                        <Button
-                            variant="ghost"
-                            className="text-white hover:bg-white/10"
-                            onClick={() => setLocation("/admin/portal")}
-                        >
-                            <ArrowLeft className="w-5 h-5 mr-2" />
-                            Back
-                        </Button>
-                        <h1 className="text-2xl font-bold">Departments</h1>
+        <Layout>
+            <div className="space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-serif font-bold text-slate-900">Departments</h1>
+                        <p className="text-muted-foreground">Manage academic departments.</p>
                     </div>
 
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                         <div className="relative w-full md:w-96">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50 w-5 h-5" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                             <input
                                 type="text"
                                 placeholder="Search departments..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-white/10 border border-white/20 rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-white/30"
+                                className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 focus:border-[#1a1f6c] focus:ring-2 focus:ring-[#1a1f6c]/20 outline-none"
                             />
                         </div>
 
                         <div className="flex gap-2">
                             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
                                 <DialogTrigger asChild>
-                                    <Button variant="secondary" className="bg-white/10 text-white hover:bg-white/20 border-white/20">
+                                    <Button variant="outline" className="text-slate-600 border-slate-200">
                                         <Upload className="w-4 h-4 mr-2" />
                                         Bulk Upload
                                     </Button>
@@ -207,8 +200,8 @@ export default function AdminDepartmentsPage() {
 
                             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                                 <DialogTrigger asChild>
-                                    <Button className="bg-[#d4af37] hover:bg-[#b5952f] text-white">
-                                        <Plus className="w-5 h-5 mr-2" />
+                                    <Button className="bg-[#1a1f6c] hover:bg-[#141852] text-white">
+                                        <Plus className="w-4 h-4 mr-2" />
                                         Add Department
                                     </Button>
                                 </DialogTrigger>
@@ -266,40 +259,40 @@ export default function AdminDepartmentsPage() {
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div className="max-w-7xl mx-auto px-6 -mt-16 relative z-20 pb-12">
-                {isLoading ? (
-                    <div className="flex justify-center py-12">
-                        <Loader2 className="w-8 h-8 text-[#1a1f6c] animate-spin" />
-                    </div>
-                ) : (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredDepartments.map((dept) => (
-                            <motion.div
-                                key={dept.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="bg-white rounded-xl shadow-sm border border-slate-100 p-6"
-                            >
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="w-12 h-12 rounded-lg bg-[#1a1f6c]/10 flex items-center justify-center text-[#1a1f6c]">
-                                        <Building2 className="w-6 h-6" />
+                <div className="">
+                    {isLoading ? (
+                        <div className="flex justify-center py-12">
+                            <Loader2 className="w-8 h-8 text-[#1a1f6c] animate-spin" />
+                        </div>
+                    ) : (
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {filteredDepartments.map((dept) => (
+                                <motion.div
+                                    key={dept.id}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="bg-white rounded-xl shadow-sm border border-slate-100 p-6"
+                                >
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="w-12 h-12 rounded-lg bg-[#1a1f6c]/10 flex items-center justify-center text-[#1a1f6c]">
+                                            <Building2 className="w-6 h-6" />
+                                        </div>
+                                        <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded font-medium">
+                                            {dept.code}
+                                        </span>
                                     </div>
-                                    <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded font-medium">
-                                        {dept.code}
-                                    </span>
-                                </div>
-                                <h3 className="font-bold text-slate-800 text-lg mb-1">{dept.name}</h3>
-                                <div className="flex items-center text-slate-500 text-sm">
-                                    <School className="w-4 h-4 mr-1" />
-                                    {dept.faculty}
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                )}
+                                    <h3 className="font-bold text-slate-800 text-lg mb-1">{dept.name}</h3>
+                                    <div className="flex items-center text-slate-500 text-sm">
+                                        <School className="w-4 h-4 mr-1" />
+                                        {dept.faculty}
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
+        </Layout>
     );
 }

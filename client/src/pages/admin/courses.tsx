@@ -2,10 +2,42 @@ import Layout from "@/components/Layout";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Search, BookOpen, Loader2, Users } from "lucide-react";
+import { Search, BookOpen, Loader2, Users, Plus, Upload, FileSpreadsheet } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { toast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function AdminCourses() {
     const [searchTerm, setSearchTerm] = useState("");
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [isUploadOpen, setIsUploadOpen] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const queryClient = useQueryClient();
+
+    const [newCourse, setNewCourse] = useState({
+        code: "",
+        title: "",
+        department: "",
+        lecturerId: "",
+        capacity: "200"
+    });
 
     const { data: coursesData, isLoading } = useQuery({
         queryKey: ["courses"],
@@ -17,8 +49,16 @@ export default function AdminCourses() {
         queryFn: api.admin.getUsers,
     });
 
+    const { data: departmentsData } = useQuery({
+        queryKey: ["departments"],
+        queryFn: api.departments.getAll
+    });
+
     const courses = coursesData?.courses || [];
+
     const users = usersData?.users || [];
+    const departments = departmentsData?.departments || [];
+    const lecturers = users.filter((u: any) => u.role === "lecturer");
 
     const getLecturerName = (lecturerId: string) => {
         const lecturer = users.find((u: any) => u.id === lecturerId);
@@ -29,7 +69,49 @@ export default function AdminCourses() {
         course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         course.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (course.department && course.department.toLowerCase().includes(searchTerm.toLowerCase()))
+            (course.department && course.department.toLowerCase().includes(searchTerm.toLowerCase()))
     );
+
+    const handleCreate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsCreating(true);
+        try {
+            await api.courses.create({
+                ...newCourse,
+                capacity: parseInt(newCourse.capacity)
+            });
+            toast({ title: "Success", description: "Course created successfully" });
+            setIsCreateOpen(false);
+            setNewCourse({ code: "", title: "", department: "", lecturerId: "", capacity: "200" });
+            queryClient.invalidateQueries({ queryKey: ["courses"] });
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const file = formData.get("file") as File;
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            const result = await api.admin.upload("courses", file);
+            toast({
+                title: "Upload Complete",
+                description: `${result.message} (${result.successCount} added, ${result.errorCount} failed)`
+            });
+            setIsUploadOpen(false);
+            queryClient.invalidateQueries({ queryKey: ["courses"] });
+        } catch (error: any) {
+            toast({ title: "Upload Failed", description: error.message, variant: "destructive" });
+        } finally {
+            setIsUploading(false);
+        }
+    };
 
     return (
         <Layout>
@@ -38,6 +120,109 @@ export default function AdminCourses() {
                     <div>
                         <h1 className="text-2xl font-serif font-bold text-slate-900">Course Management</h1>
                         <p className="text-muted-foreground">View all courses and assigned lecturers.</p>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline">
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    Bulk Upload
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Upload Courses</DialogTitle>
+                                </DialogHeader>
+                                <form onSubmit={handleUpload} className="space-y-4">
+                                    <div className="p-8 border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center text-center">
+                                        <FileSpreadsheet className="w-10 h-10 text-slate-300 mb-4" />
+                                        <Label htmlFor="file" className="cursor-pointer bg-[#1a1f6c] text-white px-4 py-2 rounded-md hover:bg-[#141852]">
+                                            Choose Excel/CSV
+                                        </Label>
+                                        <Input id="file" name="file" type="file" accept=".csv,.xlsx" className="hidden" required />
+                                        <p className="text-xs text-muted-foreground mt-2">Required: code, title, department, lecturer_staff_id (or email)</p>
+                                    </div>
+                                    <Button type="submit" className="w-full bg-[#1a1f6c]" disabled={isUploading}>
+                                        {isUploading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Upload"}
+                                    </Button>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
+
+                        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                            <DialogTrigger asChild>
+                                <Button className="bg-[#1a1f6c] text-white hover:bg-[#141852]">
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Add Course
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Create New Course</DialogTitle>
+                                </DialogHeader>
+                                <form onSubmit={handleCreate} className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Course Code</Label>
+                                            <Input
+                                                placeholder="e.g. CSC 202"
+                                                value={newCourse.code}
+                                                onChange={e => setNewCourse({ ...newCourse, code: e.target.value })}
+                                                required
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Capacity</Label>
+                                            <Input
+                                                type="number"
+                                                value={newCourse.capacity}
+                                                onChange={e => setNewCourse({ ...newCourse, capacity: e.target.value })}
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Course Title</Label>
+                                        <Input
+                                            placeholder="e.g. Intro to Programming"
+                                            value={newCourse.title}
+                                            onChange={e => setNewCourse({ ...newCourse, title: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Department</Label>
+                                        <Select onValueChange={(val) => setNewCourse({ ...newCourse, department: val })} required>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select Department" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {departments.map((d: any) => (
+                                                    <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Assign Lecturer</Label>
+                                        <Select onValueChange={(val) => setNewCourse({ ...newCourse, lecturerId: val })} required>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select Lecturer" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {lecturers.map((l: any) => (
+                                                    <SelectItem key={l.id} value={l.id}>{l.name} ({l.staffId})</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <Button type="submit" className="w-full bg-[#1a1f6c]" disabled={isCreating}>
+                                        {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Create Course"}
+                                    </Button>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
                     </div>
                 </header>
 
@@ -101,7 +286,7 @@ export default function AdminCourses() {
                         </div>
                     )}
                 </div>
-            </div>
-        </Layout>
+            </div >
+        </Layout >
     );
 }
