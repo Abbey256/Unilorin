@@ -37,7 +37,8 @@ export default function AdminFacultiesPage() {
     const fetchFaculties = async () => {
         try {
             const data = await api.faculties.getAll();
-            setFaculties(data.faculties);
+            setFaculties(data.faculties || []);
+            console.log("Fetched faculties:", data.faculties); // Debugging
         } catch (error) {
             toast({
                 title: "Error",

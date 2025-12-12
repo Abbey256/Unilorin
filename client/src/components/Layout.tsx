@@ -20,8 +20,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const logoutMutation = useMutation({
     mutationFn: api.auth.logout,
     onSuccess: () => {
+      const isUserAdmin = user?.role === "admin";
       queryClient.clear();
-      setLocation("/");
+      setLocation(isUserAdmin ? "/admin/portal" : "/");
     },
   });
 
