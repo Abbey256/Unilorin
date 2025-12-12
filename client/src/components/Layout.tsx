@@ -78,6 +78,37 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 Manage Courses
               </button>
             </>
+          ) : user?.role === "admin" ? (
+            <>
+              <button
+                onClick={() => handleNavigation("/admin/dashboard")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors text-left ${location === '/admin/dashboard' ? 'bg-[#1a1f6c]/10 text-[#1a1f6c]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Dashboard
+              </button>
+              <button
+                onClick={() => handleNavigation("/admin/faculties")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors text-left ${location === '/admin/faculties' ? 'bg-[#1a1f6c]/10 text-[#1a1f6c]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              >
+                <GraduationCap className="w-4 h-4" />
+                Faculties
+              </button>
+              <button
+                onClick={() => handleNavigation("/admin/departments")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors text-left ${location === '/admin/departments' ? 'bg-[#1a1f6c]/10 text-[#1a1f6c]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              >
+                <BookOpen className="w-4 h-4" />
+                Departments
+              </button>
+              <button
+                onClick={() => handleNavigation("/admin/users")}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors text-left ${location === '/admin/users' ? 'bg-[#1a1f6c]/10 text-[#1a1f6c]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              >
+                <User className="w-4 h-4" />
+                Users
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -162,6 +193,37 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   >
                     <Plus className="w-4 h-4" />
                     Manage Courses
+                  </button>
+                </>
+              ) : user?.role === "admin" ? (
+                <>
+                  <button
+                    onClick={() => handleNavigation("/admin/dashboard")}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium text-left hover:bg-muted"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    Dashboard
+                  </button>
+                  <button
+                    onClick={() => handleNavigation("/admin/faculties")}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium text-left hover:bg-muted"
+                  >
+                    <GraduationCap className="w-4 h-4" />
+                    Faculties
+                  </button>
+                  <button
+                    onClick={() => handleNavigation("/admin/departments")}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium text-left hover:bg-muted"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    Departments
+                  </button>
+                  <button
+                    onClick={() => handleNavigation("/admin/users")}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium text-left hover:bg-muted"
+                  >
+                    <User className="w-4 h-4" />
+                    Users
                   </button>
                 </>
               ) : (
